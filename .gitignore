@@ -5,6 +5,7 @@ coverage/
 .env
 .env.local
 .env.production
+.admin-token.local
 .DS_Store
 *.db
 *.db-journal

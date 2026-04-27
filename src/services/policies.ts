@@ -6,35 +6,42 @@ import { HttpError } from "../middlewares/error";
 export interface PolicyOnChain {
   productId: string;
   policyId: string;
+  shield: string;
   buyer: string;
-  payoutTo: string;
   coverageAmount: string;
-  premiumPaid: string;
   payoutAmount: string;
-  startTime: string;
-  endTime: string;
+  premiumPaid: string;
+  createdAt: string;
+  expiresAt: string;
   triggered: boolean;
   expired: boolean;
 }
 
 export async function getPolicy(productId: string, policyId: bigint): Promise<PolicyOnChain | undefined> {
-  // policies(productId, policyId) ->
-  //   (bytes32 productId, address buyer, address payoutTo, uint256 coverageAmount,
-  //    uint256 premiumPaid, uint256 payoutAmount, uint256 startTime, uint256 endTime,
-  //    bool triggered, bool expired)
+  // PolicyManagerV2.PolicyRecord layout (verified against src/core/PolicyManagerV2.sol):
+  //   0: bytes32 productId
+  //   1: address shield
+  //   2: address buyer
+  //   3: uint256 coverageAmount
+  //   4: uint256 payoutAmount   (coverage × payoutRatioBps / 10000)
+  //   5: uint256 premiumPaid
+  //   6: uint256 createdAt
+  //   7: uint256 expiresAt
+  //   8: bool    triggered
+  //   9: bool    expired
   const r = await policyManager.policies(productId, policyId);
-  const buyer = r[1] as string;
+  const buyer = r[2] as string;
   if (buyer === "0x0000000000000000000000000000000000000000") return undefined;
   return {
     productId: r[0],
     policyId: policyId.toString(),
+    shield: r[1],
     buyer,
-    payoutTo: r[2],
     coverageAmount: r[3].toString(),
-    premiumPaid: r[4].toString(),
-    payoutAmount: r[5].toString(),
-    startTime: r[6].toString(),
-    endTime: r[7].toString(),
+    payoutAmount: r[4].toString(),
+    premiumPaid: r[5].toString(),
+    createdAt: r[6].toString(),
+    expiresAt: r[7].toString(),
     triggered: Boolean(r[8]),
     expired: Boolean(r[9]),
   };
