@@ -40,7 +40,9 @@ const PurchaseSchema = z.object({
 
 // Authenticated: purchase a policy via the relayer.
 // Idempotency-Key header optional but strongly recommended.
-policiesAuthRouter.post("/", apiLimiter, authMiddleware, async (req, res, next) => {
+// [Audit #33 RL-1] authMiddleware MUST run before apiLimiter so the limiter's
+// keyGenerator can read req.agent and apply per-agent (not per-IP) counters.
+policiesAuthRouter.post("/", authMiddleware, apiLimiter, async (req, res, next) => {
   try {
     if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
     const body = PurchaseSchema.parse(req.body);
@@ -85,7 +87,7 @@ policiesAuthRouter.post("/", apiLimiter, authMiddleware, async (req, res, next) 
 // defaults to the authenticated agent's wallet.
 const ListQuerySchema = z.object({ owner: AddressSchema.optional() });
 
-policiesAuthRouter.get("/", apiLimiter, authMiddleware, (req, res, next) => {
+policiesAuthRouter.get("/", authMiddleware, apiLimiter, (req, res, next) => {
   try {
     if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
     const { owner } = ListQuerySchema.parse(req.query);

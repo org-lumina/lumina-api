@@ -25,6 +25,12 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     res.status(err.status).json({ error: err.code ?? "error", message: err.message });
     return;
   }
+  // [Audit #33 LOW-1] express.json() throws PayloadTooLargeError when the body
+  // exceeds the configured limit. Surface it as a proper 413 instead of 500.
+  if (err && typeof err === "object" && "type" in err && err.type === "entity.too.large") {
+    res.status(413).json({ error: "payload_too_large", message: "Request body exceeds 32 KB limit" });
+    return;
+  }
   logger.error({ err, path: req.path, method: req.method }, "unhandled error");
   res.status(500).json({ error: "internal_error", message: "An unexpected error occurred" });
 };
