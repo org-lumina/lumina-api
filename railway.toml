@@ -1,0 +1,15 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "node dist/server.js"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+
+# Required env vars (set these in Railway dashboard, not here):
+#   PORT, NODE_ENV, RPC_URL, CHAIN_ID, RELAYER_PRIVATE_KEY, ADMIN_TOKEN,
+#   LUMINA_TOKEN, CLAIM_BOND, BOND_VAULT, POLICY_MANAGER, COVER_ROUTER,
+#   MARKETPLACE, USDC, DB_PATH

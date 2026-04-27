@@ -1,0 +1,180 @@
+// Integration tests: spin up Express app with ethers/contract calls mocked.
+// These tests cover routing, validation, auth, and serialization — they do NOT
+// hit a real RPC node.
+
+jest.mock("../../src/utils/ethers", () => {
+  const fakeProvider = {
+    getBlockNumber: jest.fn().mockResolvedValue(12345),
+    getBalance: jest.fn().mockResolvedValue(BigInt("123000000000000000")),
+    getNetwork: jest.fn().mockResolvedValue({ chainId: 84532n }),
+  };
+  const fakeRelayer = { address: "0x000000000000000000000000000000000000BEEF" };
+  const fakeCoverRouter = {
+    getProductCount: jest.fn().mockResolvedValue(2n),
+    productList: jest.fn(async (i: bigint) => `0x${i.toString(16).padStart(64, "0")}`),
+    products: jest.fn().mockResolvedValue([
+      "0x" + "0".repeat(64),
+      8000n, // payoutRatioBps
+      20n,   // triggerProbBps
+      15000n, // marginBps
+      3600n,  // durationSeconds
+      true,
+    ]),
+    quotePremium: jest.fn().mockResolvedValue([1_000_000n, 5_000_000n]),
+    authorizedRelayers: jest.fn().mockResolvedValue(true),
+  };
+  const fakePolicyManager = {
+    productShield: jest.fn().mockResolvedValue("0x000000000000000000000000000000000000FEED"),
+    productActive: jest.fn().mockResolvedValue(true),
+    policies: jest.fn().mockResolvedValue([
+      "0x" + "0".repeat(64),
+      "0x000000000000000000000000000000000000abcd",
+      "0x000000000000000000000000000000000000abcd",
+      1_000_000_000n,
+      1_000_000n,
+      800_000_000n,
+      1_700_000_000n,
+      1_700_003_600n,
+      false,
+      false,
+    ]),
+  };
+  return {
+    provider: fakeProvider,
+    relayer: fakeRelayer,
+    coverRouter: fakeCoverRouter,
+    policyManager: fakePolicyManager,
+    coverRouterRelayer: fakeCoverRouter,
+    claimBond: {},
+    bondVault: {},
+    luminaToken: {},
+    usdc: {},
+  };
+});
+
+import request from "supertest";
+import { createApp } from "../../src/app";
+import { issueKey } from "../../src/services/keys";
+
+const app = createApp();
+
+describe("GET /health", () => {
+  it("returns ok with chain + relayer info", async () => {
+    const res = await request(app).get("/health");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("ok");
+    expect(res.body.chain.chainId).toBe(84532);
+    expect(res.body.relayer.address).toBe("0x000000000000000000000000000000000000BEEF");
+    expect(res.body.contracts.coverRouter).toBeDefined();
+  });
+});
+
+describe("GET /products", () => {
+  it("lists products from CoverRouter", async () => {
+    const res = await request(app).get("/products");
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(2);
+    expect(res.body.products[0].active).toBe(true);
+    expect(res.body.products[0].payoutRatioBps).toBe(8000);
+  });
+});
+
+describe("GET /products/:id/quote", () => {
+  it("validates productId format", async () => {
+    const res = await request(app).get("/products/0xabc/quote?coverageAmount=1000000");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("validation_error");
+  });
+
+  it("returns quote for valid productId", async () => {
+    const productId = "0x" + "0".repeat(64);
+    const res = await request(app).get(`/products/${productId}/quote?coverageAmount=1000000000`);
+    expect(res.status).toBe(200);
+    expect(res.body.premium).toBe("1000000");
+    expect(res.body.payout).toBe("5000000");
+  });
+});
+
+describe("GET /policies/:productId/:policyId", () => {
+  it("returns 404 for nonexistent (zero buyer)", async () => {
+    const ethersMock = require("../../src/utils/ethers");
+    ethersMock.policyManager.policies.mockResolvedValueOnce([
+      "0x" + "0".repeat(64),
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      0n, 0n, 0n, 0n, 0n, false, false,
+    ]);
+    const productId = "0x" + "0".repeat(64);
+    const res = await request(app).get(`/policies/${productId}/9999`);
+    expect(res.status).toBe(404);
+  });
+
+  it("returns policy data when present", async () => {
+    const productId = "0x" + "0".repeat(64);
+    const res = await request(app).get(`/policies/${productId}/1`);
+    expect(res.status).toBe(200);
+    expect(res.body.policyId).toBe("1");
+    expect(res.body.coverageAmount).toBe("1000000000");
+  });
+});
+
+describe("POST /api/v1/policies (auth)", () => {
+  it("rejects without API key", async () => {
+    const res = await request(app)
+      .post("/api/v1/policies")
+      .send({});
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("missing_api_key");
+  });
+
+  it("rejects with malformed API key", async () => {
+    const res = await request(app)
+      .post("/api/v1/policies")
+      .set("x-api-key", "wrongprefix_xxx")
+      .send({});
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("invalid_api_key");
+  });
+});
+
+describe("POST /api/v1/keys/generate (admin)", () => {
+  it("rejects without admin token", async () => {
+    const res = await request(app)
+      .post("/api/v1/keys/generate")
+      .send({ wallet: "0x000000000000000000000000000000000000ABCD" });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("missing_admin_token");
+  });
+
+  it("issues a key with valid admin token", async () => {
+    const res = await request(app)
+      .post("/api/v1/keys/generate")
+      .set("x-admin-token", process.env.ADMIN_TOKEN!)
+      .send({ wallet: "0x000000000000000000000000000000000000ABCD", label: "test" });
+    expect(res.status).toBe(201);
+    expect(res.body.apiKey).toMatch(/^lk_[0-9a-f]{64}$/);
+    expect(res.body.tier).toBe("free");
+    expect(res.body.warning).toMatch(/not be shown again/i);
+  });
+
+  it("validates wallet format", async () => {
+    const res = await request(app)
+      .post("/api/v1/keys/generate")
+      .set("x-admin-token", process.env.ADMIN_TOKEN!)
+      .send({ wallet: "not-a-wallet" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("validation_error");
+  });
+});
+
+describe("authenticated request flow", () => {
+  it("accepts valid API key and lists policies (empty by default)", async () => {
+    const issued = issueKey("0x000000000000000000000000000000000000FACE", "flow-test");
+    const res = await request(app)
+      .get("/api/v1/policies")
+      .set("x-api-key", issued.plaintext);
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(0);
+    expect(res.body.policies).toEqual([]);
+  });
+});

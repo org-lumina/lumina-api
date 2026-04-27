@@ -1,0 +1,50 @@
+import "dotenv/config";
+import { z } from "zod";
+
+const ConfigSchema = z.object({
+  PORT: z.coerce.number().int().positive().default(3000),
+  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+
+  RPC_URL: z.string().url(),
+  CHAIN_ID: z.coerce.number().int().positive().default(84532),
+
+  RELAYER_PRIVATE_KEY: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{64}$/, "RELAYER_PRIVATE_KEY must be 0x-prefixed 32-byte hex"),
+
+  ADMIN_TOKEN: z.string().min(32, "ADMIN_TOKEN must be at least 32 chars"),
+
+  LUMINA_TOKEN: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  CLAIM_BOND: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  BOND_VAULT: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  POLICY_MANAGER: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  COVER_ROUTER: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  MARKETPLACE: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  USDC: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+
+  DB_PATH: z.string().default("./lumina.db"),
+
+  RATE_LIMIT_FREE_RPM: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_PAID_RPM: z.coerce.number().int().positive().default(100),
+});
+
+export type Config = z.infer<typeof ConfigSchema>;
+
+let cached: Config | undefined;
+
+export function loadConfig(): Config {
+  if (cached) return cached;
+  const parsed = ConfigSchema.safeParse(process.env);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
+    throw new Error(`Invalid environment configuration:\n${issues}`);
+  }
+  cached = parsed.data;
+  return cached;
+}
+
+// For tests
+export function resetConfig(): void {
+  cached = undefined;
+}
