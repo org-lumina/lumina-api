@@ -105,8 +105,47 @@ railway.toml         — Railway deploy config
 | Marketplace | `0x863A7fB4A676106db4b03449b01AC5615c6C9D51` |
 | USDC (mock) | `0x63D340AE7229BB464bC801f225651341ebcD3693` |
 
+## Payment model — agent pays, relayer signs
+
+**The agent (buyer) pays the USDC premium. The relayer pays only the gas (in ETH).**
+
+This matches a Stripe-style flow: the API/relayer is a delivery mechanism, not a sponsor of premiums. Concretely, on every `POST /api/v1/policies` the on-chain `CoverRouterV2.purchasePolicyFor(productId, coverage, asset, buyer)` call pulls USDC from the **`buyer`** address — never from `msg.sender`. The relayer's USDC balance is irrelevant.
+
+### Agent pre-flight checklist
+
+Before the first call, every agent **must**:
+
+1. Hold enough USDC at `buyer` to cover at least one premium (premiums for V5.1 testnet shields are roughly 0.3% of coverage — e.g. 3.2 USDC for 1 000 USDC of coverage on FLASHBTC1H).
+2. Approve **CoverRouterV2** to spend USDC from `buyer`. Suggested allowance is `type(uint256).max`:
+
+   ```bash
+   cast send 0x63D340AE7229BB464bC801f225651341ebcD3693 \
+     "approve(address,uint256)" 0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316 \
+     115792089237316195423570985008687907853269984665640564039457584007913129639935 \
+     --rpc-url $RPC --private-key $AGENT_PRIVATE_KEY
+   ```
+
+3. Submit the purchase via the API:
+
+   ```bash
+   curl -X POST https://<api>/api/v1/policies \
+     -H "x-api-key: lk_..." -H "Idempotency-Key: <uuid>" \
+     -d '{"productId":"0x...","coverageAmount":"1000000000","asset":"0x...","buyer":"0x..."}'
+   ```
+
+If the agent skips step 1 or 2 the API surfaces the on-chain revert as a structured `tx_submit_failed` 400 with the underlying ERC-20 reason.
+
+### Relayer's role
+
+The relayer wallet (controlled by the API host) is responsible for:
+
+- Holding **only ETH** for gas — typically a few hundredths of a Sepolia ETH is enough.
+- Being authorized once via `CoverRouterV2.setRelayer(<relayer>, true)` from the proxy owner.
+- Signing the `purchasePolicyFor` tx on behalf of the agent.
+
+It does **not** need a USDC balance and does **not** need to approve anything.
+
 ## Notes for operators
 
-- The DB at `DB_PATH` holds API keys, agents, indexed policies, and idempotency cache. Back it up.
-- `purchasePolicyFor` requires the buyer to have approved USDC to CoverRouter beforehand. The API does **not** do this approval — agents must approve USDC themselves (or use a meta-tx flow added later).
+- The DB at `DB_PATH` holds API keys, agents, indexed policies, and idempotency cache. Back it up — on Railway with `DB_PATH=/tmp/...` it is wiped on every redeploy. For persistence across deploys, mount a Railway Volume and point `DB_PATH` at it.
 - `helmet()` + `trust proxy=1` are enabled. If you put a proxy in front of Railway, `req.ip` will reflect the client.
