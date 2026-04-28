@@ -6,13 +6,40 @@ const cfg = loadConfig();
 
 let db: Database.Database | undefined;
 
+/**
+ * [Audit #36 IDEM-TTL] Idempotency rows are kept for this many milliseconds.
+ * Anything older is pruned on boot (and on demand via `sweepIdempotency`).
+ * Seven days matches the typical retry window of upstream agent runners while
+ * keeping the on-disk footprint bounded.
+ */
+export const IDEMPOTENCY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 export function getDb(): Database.Database {
   if (db) return db;
   db = new Database(cfg.DB_PATH);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   migrate(db);
+  // [Audit #36 IDEM-TTL] One-shot boot-time sweep. Long-running deploys
+  // accumulate idempotency rows forever otherwise; with a Volume mounted on
+  // Railway this would slowly bloat the disk. The sweep runs after migrate()
+  // so the table is guaranteed to exist.
+  sweepIdempotency(db);
   return db;
+}
+
+/**
+ * Delete idempotency rows older than `IDEMPOTENCY_TTL_MS` ms.
+ * Returns the number of rows removed. Safe to call multiple times.
+ */
+export function sweepIdempotency(database?: Database.Database): number {
+  const d = database ?? getDb();
+  const cutoff = Date.now() - IDEMPOTENCY_TTL_MS;
+  const result = d.prepare("DELETE FROM idempotency WHERE created_at < ?").run(cutoff);
+  if (result.changes > 0) {
+    logger.info({ deleted: result.changes, cutoff }, "Cleaned up old idempotency rows");
+  }
+  return result.changes;
 }
 
 function migrate(d: Database.Database): void {
