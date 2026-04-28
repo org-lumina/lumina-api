@@ -21,3 +21,12 @@ process.env.USDC = "0x63D340AE7229BB464bC801f225651341ebcD3693";
 
 // Use in-memory SQLite for unit tests so they don't pollute disk.
 process.env.DB_PATH = ":memory:";
+
+// [Audit #36 fixes] Crank the IP-keyed limits high enough that no single
+// test file accumulates enough requests to trip them under the default IP
+// (supertest sends 127.0.0.1 unless X-Forwarded-For is set, and the
+// MemoryStore is shared per-process). Tests in tests/security/rate-limit-fixes
+// override these with `RATE_LIMIT_PUBLIC_IP_RPM=120` / `..._AUTH_IP_RPM=60`
+// via X-Forwarded-For-isolated IPs and lower per-test caps.
+process.env.RATE_LIMIT_PUBLIC_IP_RPM = "5000";
+process.env.RATE_LIMIT_AUTH_IP_RPM = "5000";

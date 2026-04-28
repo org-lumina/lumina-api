@@ -27,6 +27,11 @@ const ConfigSchema = z.object({
 
   RATE_LIMIT_FREE_RPM: z.coerce.number().int().positive().default(10),
   RATE_LIMIT_PAID_RPM: z.coerce.number().int().positive().default(100),
+  // [Audit #36 fixes] IP-keyed limits for the public surface and the auth
+  // entry point. Configurable so test runs can crank them up to keep test
+  // isolation between cases.
+  RATE_LIMIT_PUBLIC_IP_RPM: z.coerce.number().int().positive().default(120),
+  RATE_LIMIT_AUTH_IP_RPM: z.coerce.number().int().positive().default(60),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
