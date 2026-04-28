@@ -83,17 +83,28 @@ policiesAuthRouter.post("/", authMiddleware, apiLimiter, async (req, res, next) 
   }
 });
 
-// Authenticated: list policies for a given owner. If `owner` is omitted,
-// defaults to the authenticated agent's wallet.
+// Authenticated: list policies for the calling agent's wallet.
+//
+// [Audit #33 INV-1] An explicit `owner` query parameter is allowed only if
+// it matches the API key's wallet. Cross-owner reads are 403, even though
+// the underlying data is publicly derivable from on-chain events — the
+// API itself does not act as an unauthenticated index for other wallets.
 const ListQuerySchema = z.object({ owner: AddressSchema.optional() });
 
 policiesAuthRouter.get("/", authMiddleware, apiLimiter, (req, res, next) => {
   try {
     if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
     const { owner } = ListQuerySchema.parse(req.query);
-    const target = (owner ?? req.agent.wallet).toLowerCase();
-    const rows = listPoliciesByOwner(target);
-    res.json({ owner: target, count: rows.length, policies: rows });
+    const callerWallet = req.agent.wallet.toLowerCase();
+    if (owner && owner.toLowerCase() !== callerWallet) {
+      throw new HttpError(
+        403,
+        "Cannot query policies of other owners",
+        "forbidden"
+      );
+    }
+    const rows = listPoliciesByOwner(callerWallet);
+    res.json({ owner: callerWallet, count: rows.length, policies: rows });
   } catch (e) {
     next(e);
   }

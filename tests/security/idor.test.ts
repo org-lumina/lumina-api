@@ -70,18 +70,45 @@ describe("GET /api/v1/policies?owner= cross-owner read", () => {
     expect(res.body.owner).toBe(ALICE.toLowerCase());
   });
 
-  // CURRENT BEHAVIOUR: the API does NOT prevent Bob from reading
-  // Alice's policies via ?owner=. This is a documented IDOR — see
-  // docs/audit/v5.1-uups/33-api-architecture/REPORT.md, finding INV-1.
-  // The test asserts the current behaviour so that if a fix is
-  // applied later, this test will start failing and the finding can
-  // be marked resolved.
-  test("INV-1: Bob can currently read Alice's policy list (cross-owner read is allowed)", async () => {
+  // ─────────────────────────────────────────────────────────────────
+  // INV-1 fix (audit #33): cross-owner reads MUST return 403.
+  // ─────────────────────────────────────────────────────────────────
+
+  test("INV-1: Bob cannot read Alice's policy list (returns 403)", async () => {
     const res = await request(app)
       .get(`/api/v1/policies?owner=${ALICE}`)
       .set("x-api-key", bobKey);
-    expect(res.status).toBe(200); // <-- when fixed this should become 403
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("forbidden");
+  });
+
+  test("INV-1: omitting `owner` defaults to caller's wallet (no cross-owner leak)", async () => {
+    // Bob queries without ?owner=, must see HIS list (not Alice's).
+    const res = await request(app).get("/api/v1/policies").set("x-api-key", bobKey);
+    expect(res.status).toBe(200);
+    expect(res.body.owner).toBe(BOB.toLowerCase());
+    // Bob has no policies seeded — so count is 0.
+    expect(res.body.count).toBe(0);
+  });
+
+  test("INV-1: explicit owner = caller's own wallet (case-insensitive) is allowed", async () => {
+    // ALICE is "0x...A11C"; the API stores the wallet lowercase. Caller passes
+    // an all-lowercase form of their own address; comparison must succeed.
+    const sameAddrLower = ALICE.toLowerCase();
+    const res = await request(app)
+      .get(`/api/v1/policies?owner=${sameAddrLower}`)
+      .set("x-api-key", aliceKey);
+    expect(res.status).toBe(200);
     expect(res.body.owner).toBe(ALICE.toLowerCase());
+  });
+
+  test("INV-1: explicit owner = different wallet (any casing) still 403", async () => {
+    // Bob asks for Alice's policies with the address spelled in lowercase.
+    const aliceLower = ALICE.toLowerCase();
+    const res = await request(app)
+      .get(`/api/v1/policies?owner=${aliceLower}`)
+      .set("x-api-key", bobKey);
+    expect(res.status).toBe(403);
   });
 });
 
