@@ -22,6 +22,9 @@ jest.mock("../../src/utils/ethers", () => {
     ]),
     quotePremium: jest.fn().mockResolvedValue([1_000_000n, 5_000_000n]),
     authorizedRelayers: jest.fn().mockResolvedValue(true),
+    // [V5.1 H-4 / M-7] Pre-flight surface for purchaseViaRelayer.
+    paused: jest.fn().mockResolvedValue(false),
+    globalPauseRegistry: jest.fn().mockResolvedValue("0x0000000000000000000000000000000000000000"),
   };
   const fakePolicyManager = {
     productShield: jest.fn().mockResolvedValue("0x000000000000000000000000000000000000FEED"),
@@ -38,6 +41,8 @@ jest.mock("../../src/utils/ethers", () => {
       false,
       false,
     ]),
+    // [V5.1 H-6] Per-policy LUMINA price snapshot.
+    policyPriceSnapshot: jest.fn().mockResolvedValue(36_000_000_000_000_000n),
   };
   return {
     provider: fakeProvider,
@@ -49,6 +54,7 @@ jest.mock("../../src/utils/ethers", () => {
     bondVault: {},
     luminaToken: {},
     usdc: {},
+    getGlobalPauseRegistry: jest.fn().mockResolvedValue(undefined),
   };
 });
 
