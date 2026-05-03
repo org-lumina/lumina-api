@@ -3,6 +3,7 @@ import helmet from "helmet";
 import { healthRouter } from "./routes/health";
 import { productsRouter } from "./routes/products";
 import { policiesPublicRouter, policiesAuthRouter } from "./routes/policies";
+import { marketplaceAuthRouter } from "./routes/marketplace";
 import { keysRouter } from "./routes/keys";
 import { errorHandler, notFoundHandler } from "./middlewares/error";
 import { authIpLimiter, publicIpLimiter } from "./middlewares/rateLimit";
@@ -24,6 +25,7 @@ export function createApp(): Application {
   // The per-agent `apiLimiter` inside the route then counts only the requests
   // that actually authenticate.
   app.use("/api/v1/policies", authIpLimiter, policiesAuthRouter);
+  app.use("/api/v1/marketplace", authIpLimiter, marketplaceAuthRouter);
 
   // Admin (admin token + adminLimiter inside the router).
   app.use("/api/v1/keys", keysRouter);

@@ -88,6 +88,25 @@ function migrate(d: Database.Database): void {
       created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
       FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS listings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      listing_id TEXT NOT NULL UNIQUE,
+      seller_address TEXT NOT NULL,
+      bond_id TEXT NOT NULL,
+      amount TEXT NOT NULL,
+      total_price_usdc TEXT NOT NULL,
+      tx_hash TEXT NOT NULL UNIQUE,
+      block_number INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      submitted_by INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+      FOREIGN KEY (submitted_by) REFERENCES agents(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_listings_seller ON listings(seller_address);
+    CREATE INDEX IF NOT EXISTS idx_listings_bond ON listings(bond_id);
+    CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
   `);
   logger.debug("DB migrated");
 }
@@ -211,6 +230,49 @@ export function saveIdempotency(key: string, agentId: number, responseJson: stri
   d.prepare(
     "INSERT OR IGNORE INTO idempotency (key, agent_id, response_json) VALUES (?, ?, ?)"
   ).run(key, agentId, responseJson);
+}
+
+// Listings (POST /api/v1/marketplace/list — verifier pattern)
+export interface ListingRow {
+  id: number;
+  listing_id: string;
+  seller_address: string;
+  bond_id: string;
+  amount: string;
+  total_price_usdc: string;
+  tx_hash: string;
+  block_number: number;
+  status: string;
+  submitted_by: number | null;
+  created_at: number;
+}
+
+export function recordListing(input: Omit<ListingRow, "id" | "status" | "created_at"> & { status?: string }): ListingRow {
+  const d = getDb();
+  return d
+    .prepare(
+      `INSERT INTO listings (listing_id, seller_address, bond_id, amount, total_price_usdc, tx_hash, block_number, status, submitted_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       RETURNING *`
+    )
+    .get(
+      input.listing_id,
+      input.seller_address.toLowerCase(),
+      input.bond_id,
+      input.amount,
+      input.total_price_usdc,
+      input.tx_hash.toLowerCase(),
+      input.block_number,
+      input.status ?? "active",
+      input.submitted_by
+    ) as ListingRow;
+}
+
+export function getListingByTxHash(txHash: string): ListingRow | undefined {
+  const d = getDb();
+  return d
+    .prepare("SELECT * FROM listings WHERE tx_hash = ?")
+    .get(txHash.toLowerCase()) as ListingRow | undefined;
 }
 
 export function closeDb(): void {
