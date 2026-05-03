@@ -7,6 +7,7 @@ import ClaimBondArtifact from "../../abis/ClaimBond.json";
 import BondVaultArtifact from "../../abis/BondVault.json";
 import LuminaTokenArtifact from "../../abis/LuminaTokenV2.json";
 import UsdcArtifact from "../../abis/MockUSDC.json";
+import MarketplaceArtifact from "../../abis/LuminaBondMarketplace.json";
 
 interface Artifact {
   abi: ReadonlyArray<Record<string, unknown>>;
@@ -35,6 +36,7 @@ export const claimBond = readonly(cfg.CLAIM_BOND, ClaimBondArtifact as Artifact)
 export const bondVault = readonly(cfg.BOND_VAULT, BondVaultArtifact as Artifact);
 export const luminaToken = readonly(cfg.LUMINA_TOKEN, LuminaTokenArtifact as Artifact);
 export const usdc = readonly(cfg.USDC, UsdcArtifact as Artifact);
+export const marketplace = readonly(cfg.MARKETPLACE, MarketplaceArtifact as Artifact);
 
 // Signing handles (relayer)
 export const coverRouterRelayer = withSigner(cfg.COVER_ROUTER, CoverRouterArtifact as Artifact);
