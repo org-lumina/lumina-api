@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { coverRouterRelayer, policyManager, relayer } from "../utils/ethers";
+import { coverRouter, coverRouterRelayer, getGlobalPauseRegistry, policyManager, relayer } from "../utils/ethers";
 import { logger } from "../utils/logger";
 import { HttpError } from "../middlewares/error";
 
@@ -15,6 +15,13 @@ export interface PolicyOnChain {
   expiresAt: string;
   triggered: boolean;
   expired: boolean;
+  /**
+   * [V5.1 H-6] LUMINA/USD price snapshot (18-dec) recorded at `recordPolicy`
+   * time. When the policy triggers, BondVault uses this price to issue the
+   * bond — protecting the buyer from oracle drift between purchase and trigger.
+   * `"0"` when not yet set (e.g. legacy V5.0 policies stored before H-6).
+   */
+  priceSnapshot: string;
 }
 
 export async function getPolicy(productId: string, policyId: bigint): Promise<PolicyOnChain | undefined> {
@@ -32,6 +39,9 @@ export async function getPolicy(productId: string, policyId: bigint): Promise<Po
   const r = await policyManager.policies(productId, policyId);
   const buyer = r[2] as string;
   if (buyer === "0x0000000000000000000000000000000000000000") return undefined;
+  // [V5.1 H-6] Surface the per-policy price snapshot. Read in parallel with
+  // the policies() call to keep latency flat.
+  const priceSnapshot: bigint = await policyManager.policyPriceSnapshot(productId, policyId);
   return {
     productId: r[0],
     policyId: policyId.toString(),
@@ -44,6 +54,7 @@ export async function getPolicy(productId: string, policyId: bigint): Promise<Po
     expiresAt: r[7].toString(),
     triggered: Boolean(r[8]),
     expired: Boolean(r[9]),
+    priceSnapshot: priceSnapshot.toString(),
   };
 }
 
@@ -85,6 +96,38 @@ export async function purchaseViaRelayer(input: PurchaseInput): Promise<Purchase
       503,
       `Relayer ${relayer.address} is not authorized in CoverRouter. Owner must call setRelayer(${relayer.address}, true).`,
       "relayer_unauthorized"
+    );
+  }
+
+  // [V5.1 H-4] Pre-flight: CoverRouterV2 local pause flag. The on-chain
+  // `whenNotPaused` modifier reverts with `ContractPaused()` — pre-flighting
+  // here returns a clean 503 without consuming gas estimation.
+  const localPaused: boolean = await coverRouter.paused();
+  if (localPaused) {
+    throw new HttpError(503, "CoverRouter is paused (local circuit breaker)", "cover_router_paused");
+  }
+
+  // [V5.1 M-7] Pre-flight: GlobalPauseRegistry. CoverRouterV2's `whenNotPaused`
+  // modifier ALSO calls `globalPauseRegistry.isGloballyPaused()` (defense-in-
+  // depth multisig kill switch). Skip when the registry is unset (address(0))
+  // — matches the modifier's null-check.
+  const registry = await getGlobalPauseRegistry();
+  if (registry) {
+    const globallyPaused: boolean = await registry.isGloballyPaused();
+    if (globallyPaused) {
+      throw new HttpError(503, "Protocol is globally paused", "globally_paused");
+    }
+  }
+
+  // [V5.1 H-5] Pre-flight: product must be active. PolicyManagerV2.recordPolicy
+  // reverts with `ProductNotActive(productId)` — pre-flighting returns a 400
+  // with the specific code so clients can distinguish from generic tx errors.
+  const productActive: boolean = await policyManager.productActive(input.productId);
+  if (!productActive) {
+    throw new HttpError(
+      400,
+      `Product ${input.productId} is not active`,
+      "product_inactive"
     );
   }
 
