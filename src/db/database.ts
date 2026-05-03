@@ -88,6 +88,23 @@ function migrate(d: Database.Database): void {
       created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
       FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS redemptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      epoch_id TEXT NOT NULL,
+      owner_address TEXT NOT NULL,
+      tx_hash TEXT NOT NULL UNIQUE,
+      usd_amount TEXT NOT NULL,
+      lumina_received TEXT NOT NULL,
+      price_used TEXT NOT NULL,
+      block_number INTEGER NOT NULL,
+      submitted_by INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+      FOREIGN KEY (submitted_by) REFERENCES agents(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_redemptions_owner ON redemptions(owner_address);
+    CREATE INDEX IF NOT EXISTS idx_redemptions_epoch ON redemptions(epoch_id);
   `);
   logger.debug("DB migrated");
 }
@@ -211,6 +228,47 @@ export function saveIdempotency(key: string, agentId: number, responseJson: stri
   d.prepare(
     "INSERT OR IGNORE INTO idempotency (key, agent_id, response_json) VALUES (?, ?, ?)"
   ).run(key, agentId, responseJson);
+}
+
+// Redemptions (POST /api/v1/redeem — verifier pattern)
+export interface RedemptionRow {
+  id: number;
+  epoch_id: string;
+  owner_address: string;
+  tx_hash: string;
+  usd_amount: string;
+  lumina_received: string;
+  price_used: string;
+  block_number: number;
+  submitted_by: number | null;
+  created_at: number;
+}
+
+export function recordRedemption(input: Omit<RedemptionRow, "id" | "created_at">): RedemptionRow {
+  const d = getDb();
+  return d
+    .prepare(
+      `INSERT INTO redemptions (epoch_id, owner_address, tx_hash, usd_amount, lumina_received, price_used, block_number, submitted_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       RETURNING *`
+    )
+    .get(
+      input.epoch_id,
+      input.owner_address.toLowerCase(),
+      input.tx_hash.toLowerCase(),
+      input.usd_amount,
+      input.lumina_received,
+      input.price_used,
+      input.block_number,
+      input.submitted_by
+    ) as RedemptionRow;
+}
+
+export function getRedemptionByTxHash(txHash: string): RedemptionRow | undefined {
+  const d = getDb();
+  return d
+    .prepare("SELECT * FROM redemptions WHERE tx_hash = ?")
+    .get(txHash.toLowerCase()) as RedemptionRow | undefined;
 }
 
 export function closeDb(): void {
