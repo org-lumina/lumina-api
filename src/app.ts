@@ -4,6 +4,7 @@ import { healthRouter } from "./routes/health";
 import { productsRouter } from "./routes/products";
 import { policiesPublicRouter, policiesAuthRouter } from "./routes/policies";
 import { redeemAuthRouter } from "./routes/redeem";
+import { bondsAuthRouter } from "./routes/bonds";
 import { keysRouter } from "./routes/keys";
 import { errorHandler, notFoundHandler } from "./middlewares/error";
 import { authIpLimiter, publicIpLimiter } from "./middlewares/rateLimit";
@@ -26,6 +27,7 @@ export function createApp(): Application {
   // that actually authenticate.
   app.use("/api/v1/policies", authIpLimiter, policiesAuthRouter);
   app.use("/api/v1/redeem", authIpLimiter, redeemAuthRouter);
+  app.use("/api/v1/bonds", authIpLimiter, bondsAuthRouter);
 
   // Admin (admin token + adminLimiter inside the router).
   app.use("/api/v1/keys", keysRouter);
