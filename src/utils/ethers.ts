@@ -8,6 +8,7 @@ import BondVaultArtifact from "../../abis/BondVault.json";
 import LuminaTokenArtifact from "../../abis/LuminaTokenV2.json";
 import UsdcArtifact from "../../abis/MockUSDC.json";
 import GlobalPauseRegistryArtifact from "../../abis/GlobalPauseRegistry.json";
+import ShieldArtifact from "../../abis/IShield.json";
 
 interface Artifact {
   abi: ReadonlyArray<Record<string, unknown>>;
@@ -50,4 +51,13 @@ export async function getGlobalPauseRegistry(): Promise<Contract | undefined> {
   const addr: string = await coverRouter.globalPauseRegistry();
   if (!addr || addr === "0x0000000000000000000000000000000000000000") return undefined;
   return new Contract(addr, (GlobalPauseRegistryArtifact as Artifact).abi as never, provider);
+}
+
+/**
+ * Build a read-only Shield handle. Each product has its own Shield address —
+ * resolved via `policyManager.productShield(productId)` — so the contract is
+ * built per-call rather than as a module-level constant.
+ */
+export function getShield(address: string): Contract {
+  return new Contract(address, (ShieldArtifact as Artifact).abi as never, provider);
 }

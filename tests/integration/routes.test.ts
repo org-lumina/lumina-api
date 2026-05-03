@@ -43,6 +43,25 @@ jest.mock("../../src/utils/ethers", () => {
     ]),
     // [V5.1 H-6] Per-policy LUMINA price snapshot.
     policyPriceSnapshot: jest.fn().mockResolvedValue(36_000_000_000_000_000n),
+    // [V5.1] Trigger metadata lookup. Default: empty (no PolicyTriggered events).
+    filters: { PolicyTriggered: jest.fn(() => ({})) },
+    queryFilter: jest.fn().mockResolvedValue([]),
+  };
+  // [V5.1] Shield handle returned by getShield(address).
+  const fakeShield = {
+    getPolicyInfo: jest.fn().mockResolvedValue([
+      1n,                         // policyId
+      "0x000000000000000000000000000000000000abcd", // insuredAgent
+      1_000_000_000n,             // coverageAmount
+      1_000_000n,                 // premiumPaid
+      800_000_000n,               // maxPayout
+      1_700_000_000n,             // startTimestamp
+      1_700_001_800n,             // waitingEndsAt
+      1_700_003_600n,             // expiresAt
+      1_700_007_200n,             // cleanupAt
+      2,                          // status (ACTIVE)
+    ]),
+    target: "0x000000000000000000000000000000000000FEED",
   };
   return {
     provider: fakeProvider,
@@ -51,10 +70,11 @@ jest.mock("../../src/utils/ethers", () => {
     policyManager: fakePolicyManager,
     coverRouterRelayer: fakeCoverRouter,
     claimBond: {},
-    bondVault: {},
+    bondVault: { target: "0x000000000000000000000000000000000000B00D" },
     luminaToken: {},
     usdc: {},
     getGlobalPauseRegistry: jest.fn().mockResolvedValue(undefined),
+    getShield: jest.fn().mockReturnValue(fakeShield),
   };
 });
 
