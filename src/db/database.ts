@@ -106,6 +106,8 @@ function migrate(d: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_redemptions_owner ON redemptions(owner_address);
     CREATE INDEX IF NOT EXISTS idx_redemptions_epoch ON redemptions(epoch_id);
 
+    -- Marketplace listings (populated by /marketplace/list; consumed by
+    -- /marketplace/buy as the pre-check authoritative store).
     CREATE TABLE IF NOT EXISTS listings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       listing_id TEXT NOT NULL UNIQUE,
@@ -124,6 +126,27 @@ function migrate(d: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_listings_seller ON listings(seller_address);
     CREATE INDEX IF NOT EXISTS idx_listings_bond ON listings(bond_id);
     CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
+
+    CREATE TABLE IF NOT EXISTS purchases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      listing_id TEXT NOT NULL,
+      buyer_address TEXT NOT NULL,
+      seller_address TEXT NOT NULL,
+      bond_id TEXT NOT NULL,
+      amount TEXT NOT NULL,
+      total_paid_usdc TEXT NOT NULL,
+      tx_hash TEXT NOT NULL UNIQUE,
+      block_number INTEGER NOT NULL,
+      executed_at INTEGER,
+      submitted_by INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+      FOREIGN KEY (submitted_by) REFERENCES agents(id) ON DELETE SET NULL,
+      FOREIGN KEY (listing_id) REFERENCES listings(listing_id) ON DELETE RESTRICT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_purchases_buyer ON purchases(buyer_address);
+    CREATE INDEX IF NOT EXISTS idx_purchases_seller ON purchases(seller_address);
+    CREATE INDEX IF NOT EXISTS idx_purchases_listing ON purchases(listing_id);
   `);
   logger.debug("DB migrated");
 }
@@ -290,7 +313,7 @@ export function getRedemptionByTxHash(txHash: string): RedemptionRow | undefined
     .get(txHash.toLowerCase()) as RedemptionRow | undefined;
 }
 
-// Listings (POST /api/v1/marketplace/list — verifier pattern)
+// Marketplace listings (POST /api/v1/marketplace/list + read for /buy pre-check)
 export interface ListingRow {
   id: number;
   listing_id: string;
@@ -331,6 +354,82 @@ export function getListingByTxHash(txHash: string): ListingRow | undefined {
   return d
     .prepare("SELECT * FROM listings WHERE tx_hash = ?")
     .get(txHash.toLowerCase()) as ListingRow | undefined;
+}
+
+export function getListingByListingId(listingId: string): ListingRow | undefined {
+  const d = getDb();
+  return d
+    .prepare("SELECT * FROM listings WHERE listing_id = ?")
+    .get(listingId) as ListingRow | undefined;
+}
+
+// Marketplace purchases (POST /api/v1/marketplace/buy)
+export interface PurchaseRow {
+  id: number;
+  listing_id: string;
+  buyer_address: string;
+  seller_address: string;
+  bond_id: string;
+  amount: string;
+  total_paid_usdc: string;
+  tx_hash: string;
+  block_number: number;
+  executed_at: number | null;
+  submitted_by: number | null;
+  created_at: number;
+}
+
+/**
+ * Atomically: insert the purchase row AND mark the parent listing's
+ * `status` = 'executed'. Both happen in one SQLite transaction so a
+ * failure on either side rolls the other back — prevents the case
+ * where a duplicate purchase row would land on an already-finalized
+ * listing.
+ */
+export function recordPurchaseAndFinalizeListing(
+  input: Omit<PurchaseRow, "id" | "created_at">
+): PurchaseRow {
+  const d = getDb();
+  const insertPurchase = d.prepare(
+    `INSERT INTO purchases (listing_id, buyer_address, seller_address, bond_id, amount, total_paid_usdc, tx_hash, block_number, executed_at, submitted_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     RETURNING *`
+  );
+  const updateListing = d.prepare(
+    `UPDATE listings SET status = 'executed' WHERE listing_id = ? AND status = 'active'`
+  );
+
+  const tx = d.transaction((args: Omit<PurchaseRow, "id" | "created_at">) => {
+    const row = insertPurchase.get(
+      args.listing_id,
+      args.buyer_address.toLowerCase(),
+      args.seller_address.toLowerCase(),
+      args.bond_id,
+      args.amount,
+      args.total_paid_usdc,
+      args.tx_hash.toLowerCase(),
+      args.block_number,
+      args.executed_at,
+      args.submitted_by
+    ) as PurchaseRow;
+
+    const updated = updateListing.run(args.listing_id);
+    if (updated.changes === 0) {
+      // Listing was already finalized between our pre-check and this UPDATE.
+      // Roll the transaction back via a thrown error — the caller maps it
+      // to 409 listing_not_active.
+      throw Object.assign(new Error("listing_not_active"), { code: "LISTING_RACE" });
+    }
+    return row;
+  });
+  return tx(input);
+}
+
+export function getPurchaseByTxHash(txHash: string): PurchaseRow | undefined {
+  const d = getDb();
+  return d
+    .prepare("SELECT * FROM purchases WHERE tx_hash = ?")
+    .get(txHash.toLowerCase()) as PurchaseRow | undefined;
 }
 
 export function closeDb(): void {
