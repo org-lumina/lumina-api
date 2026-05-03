@@ -22,6 +22,9 @@ jest.mock("../../src/utils/ethers", () => {
     ]),
     quotePremium: jest.fn().mockResolvedValue([1_000_000n, 5_000_000n]),
     authorizedRelayers: jest.fn().mockResolvedValue(true),
+    // [V5.1 H-4 / M-7] Pre-flight surface for purchaseViaRelayer.
+    paused: jest.fn().mockResolvedValue(false),
+    globalPauseRegistry: jest.fn().mockResolvedValue("0x0000000000000000000000000000000000000000"),
   };
   const fakePolicyManager = {
     productShield: jest.fn().mockResolvedValue("0x000000000000000000000000000000000000FEED"),
@@ -38,6 +41,27 @@ jest.mock("../../src/utils/ethers", () => {
       false,
       false,
     ]),
+    // [V5.1 H-6] Per-policy LUMINA price snapshot.
+    policyPriceSnapshot: jest.fn().mockResolvedValue(36_000_000_000_000_000n),
+    // [V5.1] Trigger metadata lookup. Default: empty (no PolicyTriggered events).
+    filters: { PolicyTriggered: jest.fn(() => ({})) },
+    queryFilter: jest.fn().mockResolvedValue([]),
+  };
+  // [V5.1] Shield handle returned by getShield(address).
+  const fakeShield = {
+    getPolicyInfo: jest.fn().mockResolvedValue([
+      1n,                         // policyId
+      "0x000000000000000000000000000000000000abcd", // insuredAgent
+      1_000_000_000n,             // coverageAmount
+      1_000_000n,                 // premiumPaid
+      800_000_000n,               // maxPayout
+      1_700_000_000n,             // startTimestamp
+      1_700_001_800n,             // waitingEndsAt
+      1_700_003_600n,             // expiresAt
+      1_700_007_200n,             // cleanupAt
+      2,                          // status (ACTIVE)
+    ]),
+    target: "0x000000000000000000000000000000000000FEED",
   };
   return {
     provider: fakeProvider,
@@ -46,9 +70,11 @@ jest.mock("../../src/utils/ethers", () => {
     policyManager: fakePolicyManager,
     coverRouterRelayer: fakeCoverRouter,
     claimBond: {},
-    bondVault: {},
+    bondVault: { target: "0x000000000000000000000000000000000000B00D" },
     luminaToken: {},
     usdc: {},
+    getGlobalPauseRegistry: jest.fn().mockResolvedValue(undefined),
+    getShield: jest.fn().mockReturnValue(fakeShield),
   };
 });
 

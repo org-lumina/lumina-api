@@ -14,6 +14,9 @@ jest.mock("../../src/utils/ethers", () => {
   const fakeRelayer = { address: "0x0000000000000000000000000000000000000001" };
   const fakeRouter = {
     authorizedRelayers: jest.fn().mockResolvedValue(true),
+    // [V5.1 H-4 / M-7] Pre-flights — both unpaused for idempotency tests.
+    paused: jest.fn().mockResolvedValue(false),
+    globalPauseRegistry: jest.fn().mockResolvedValue("0x0000000000000000000000000000000000000000"),
     purchasePolicyFor: jest.fn(async () => {
       purchaseCallCount += 1;
       return {
@@ -26,16 +29,19 @@ jest.mock("../../src/utils/ethers", () => {
       };
     }),
   };
+  // [V5.1 H-5] Pre-flight productActive used by purchaseViaRelayer.
+  const fakePolicyManager = { productActive: jest.fn().mockResolvedValue(true) };
   return {
     provider: fakeProvider,
     relayer: fakeRelayer,
     coverRouter: fakeRouter,
     coverRouterRelayer: fakeRouter,
-    policyManager: {},
+    policyManager: fakePolicyManager,
     claimBond: {},
     bondVault: {},
     luminaToken: {},
     usdc: {},
+    getGlobalPauseRegistry: jest.fn().mockResolvedValue(undefined),
   };
 });
 
