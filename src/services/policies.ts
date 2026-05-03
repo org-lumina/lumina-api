@@ -1,49 +1,157 @@
 import { ethers } from "ethers";
-import { coverRouterRelayer, policyManager, relayer } from "../utils/ethers";
+import { bondVault, coverRouterRelayer, getShield, policyManager, provider, relayer } from "../utils/ethers";
+import { getProductName } from "../utils/productNames";
 import { logger } from "../utils/logger";
 import { HttpError } from "../middlewares/error";
 
+export type PolicyStatus = "Waiting" | "Active" | "Triggered" | "Expired" | "Cancelled";
+
 export interface PolicyOnChain {
   productId: string;
+  productName: string;            // [V5.1] derived from PRODUCT_ID preimage
   policyId: string;
   shield: string;
+  /** @deprecated kept for backwards-compat; same value as `holder`. */
   buyer: string;
+  holder: string;                 // wallet that owns the policy (same as buyer)
   coverageAmount: string;
   payoutAmount: string;
-  premiumPaid: string;
+  premiumPaid: string;            // USDC base units (6-dec)
+  purchasedAt: string;            // [V5.1 alias of createdAt — names match the spec]
   createdAt: string;
+  waitingEndsAt: string | null;   // [V5.1] from Shield.getPolicyInfo
   expiresAt: string;
+  status: PolicyStatus;
   triggered: boolean;
   expired: boolean;
+  productActive: boolean;         // [V5.1 H-5]
+  priceSnapshot: string;          // [V5.1 H-6] LUMINA/USD 18-dec at purchase
+  triggeredAt: string | null;     // [V5.1] from PolicyTriggered event block
+  bondId: string | null;          // [V5.1] BondVault epochId emitted on trigger
+}
+
+const BOND_ISSUED_TOPIC = ethers.id("BondIssued(address,uint256,uint256)");
+
+/**
+ * Look up the (epochId, blockNumber) emitted when this policy was triggered.
+ * Returns `{triggeredAt, bondId}` (both as strings) or both null when no
+ * `PolicyTriggered` event is found on-chain (e.g. legacy data, indexer drift).
+ *
+ * Heavy: this calls `queryFilter` against `PolicyTriggered(productId, policyId)`
+ * — only invoked for policies whose `triggered` flag is already `true` from
+ * the on-chain record, so the cost is bounded to one log scan per such read.
+ */
+async function resolveTriggerMetadata(
+  productId: string,
+  policyId: bigint
+): Promise<{ triggeredAt: string | null; bondId: string | null }> {
+  try {
+    const filter = policyManager.filters.PolicyTriggered(productId, policyId);
+    const events = await policyManager.queryFilter(filter);
+    if (events.length === 0) return { triggeredAt: null, bondId: null };
+    const ev = events[0];
+
+    let triggeredAt: string | null = null;
+    const block = await provider.getBlock(ev.blockNumber);
+    if (block) triggeredAt = String(block.timestamp);
+
+    // Bond was minted in the same tx — scan its receipt logs for BondIssued.
+    let bondId: string | null = null;
+    const receipt = await provider.getTransactionReceipt(ev.transactionHash);
+    if (receipt) {
+      const bondVaultAddr = (bondVault.target as string).toLowerCase();
+      for (const log of receipt.logs) {
+        if (
+          log.address.toLowerCase() === bondVaultAddr &&
+          log.topics[0] === BOND_ISSUED_TOPIC
+        ) {
+          // BondIssued(address indexed to, uint256 indexed epochId, uint256 usdAmount)
+          bondId = BigInt(log.topics[2]).toString();
+          break;
+        }
+      }
+    }
+    return { triggeredAt, bondId };
+  } catch (e) {
+    logger.warn({ err: e, productId, policyId: policyId.toString() }, "trigger metadata lookup failed");
+    return { triggeredAt: null, bondId: null };
+  }
 }
 
 export async function getPolicy(productId: string, policyId: bigint): Promise<PolicyOnChain | undefined> {
   // PolicyManagerV2.PolicyRecord layout (verified against src/core/PolicyManagerV2.sol):
-  //   0: bytes32 productId
-  //   1: address shield
-  //   2: address buyer
-  //   3: uint256 coverageAmount
-  //   4: uint256 payoutAmount   (coverage × payoutRatioBps / 10000)
-  //   5: uint256 premiumPaid
-  //   6: uint256 createdAt
-  //   7: uint256 expiresAt
-  //   8: bool    triggered
-  //   9: bool    expired
+  //   0: bytes32 productId      | 5: uint256 premiumPaid
+  //   1: address shield         | 6: uint256 createdAt
+  //   2: address buyer          | 7: uint256 expiresAt
+  //   3: uint256 coverageAmount | 8: bool    triggered
+  //   4: uint256 payoutAmount   | 9: bool    expired
   const r = await policyManager.policies(productId, policyId);
   const buyer = r[2] as string;
   if (buyer === "0x0000000000000000000000000000000000000000") return undefined;
+
+  // Parallel reads of secondary fields to keep latency flat.
+  const [productActiveRaw, priceSnapshotRaw, shieldInfo] = await Promise.all([
+    policyManager.productActive(productId) as Promise<boolean>,
+    policyManager.policyPriceSnapshot(productId, policyId) as Promise<bigint>,
+    // Shield is per-product. `r[1]` is the shield address from the record.
+    (async () => {
+      try {
+        return await getShield(r[1] as string).getPolicyInfo(policyId);
+      } catch (e) {
+        logger.warn({ err: e, shield: r[1], policyId: policyId.toString() }, "shield getPolicyInfo failed");
+        return undefined;
+      }
+    })(),
+  ]);
+
+  const triggered = Boolean(r[8]);
+  const expired = Boolean(r[9]);
+
+  // PolicyManagerV2 records `triggered`/`expired` flags only — no explicit
+  // "Cancelled" flag. We derive a frontend-friendly status string from the
+  // available fields + the Shield's waiting period.
+  let status: PolicyStatus;
+  if (triggered) status = "Triggered";
+  else if (expired) status = "Expired";
+  else {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const waitingEndsRaw = shieldInfo
+      ? Number(shieldInfo.waitingEndsAt ?? shieldInfo[6])
+      : 0;
+    status = nowSec < waitingEndsRaw ? "Waiting" : "Active";
+  }
+
+  const waitingEndsAt = shieldInfo
+    ? (shieldInfo.waitingEndsAt ?? shieldInfo[6]).toString()
+    : null;
+
+  // Trigger metadata is best-effort; only fetched when the on-chain record
+  // says the policy was triggered.
+  const { triggeredAt, bondId } = triggered
+    ? await resolveTriggerMetadata(productId, policyId)
+    : { triggeredAt: null, bondId: null };
+
   return {
     productId: r[0],
+    productName: getProductName(r[0] as string),
     policyId: policyId.toString(),
     shield: r[1],
     buyer,
+    holder: buyer,
     coverageAmount: r[3].toString(),
     payoutAmount: r[4].toString(),
     premiumPaid: r[5].toString(),
+    purchasedAt: r[6].toString(),
     createdAt: r[6].toString(),
+    waitingEndsAt,
     expiresAt: r[7].toString(),
-    triggered: Boolean(r[8]),
-    expired: Boolean(r[9]),
+    status,
+    triggered,
+    expired,
+    productActive: Boolean(productActiveRaw),
+    priceSnapshot: priceSnapshotRaw.toString(),
+    triggeredAt,
+    bondId,
   };
 }
 

@@ -7,6 +7,7 @@ import ClaimBondArtifact from "../../abis/ClaimBond.json";
 import BondVaultArtifact from "../../abis/BondVault.json";
 import LuminaTokenArtifact from "../../abis/LuminaTokenV2.json";
 import UsdcArtifact from "../../abis/MockUSDC.json";
+import ShieldArtifact from "../../abis/IShield.json";
 
 interface Artifact {
   abi: ReadonlyArray<Record<string, unknown>>;
@@ -38,3 +39,12 @@ export const usdc = readonly(cfg.USDC, UsdcArtifact as Artifact);
 
 // Signing handles (relayer)
 export const coverRouterRelayer = withSigner(cfg.COVER_ROUTER, CoverRouterArtifact as Artifact);
+
+/**
+ * Build a read-only Shield handle. Each product has its own Shield address —
+ * resolved via `policyManager.productShield(productId)` — so the contract is
+ * built per-call rather than as a module-level constant.
+ */
+export function getShield(address: string): Contract {
+  return new Contract(address, (ShieldArtifact as Artifact).abi as never, provider);
+}
