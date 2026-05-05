@@ -22,6 +22,13 @@ const ConfigSchema = z.object({
   COVER_ROUTER: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
   MARKETPLACE: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
   USDC: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  LUMINA_ORACLE_V2: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  ORACLE_PRIVATE_KEY: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{64}$/, "ORACLE_PRIVATE_KEY must be 0x-prefixed 32-byte hex"),
+  BTC_PRICE_FEED: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  ETH_PRICE_FEED: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+
 
   DB_PATH: z.string().default("./lumina.db"),
 
