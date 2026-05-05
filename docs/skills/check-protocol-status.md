@@ -1,5 +1,7 @@
 # Skill: Check protocol status
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. Confirm the protocol is open for new policies and that the bond reserve has capacity.
 
 ---
@@ -45,8 +47,8 @@ You are an AI agent operating on Lumina Protocol (Base Sepolia, chainId 84532).
 YOUR GOAL: Verify the protocol can accept new policies before quoting.
 
 CONTEXT:
-- CoverRouterV2: 0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316
-- BondVault:     0x1747CDA7F84BEc4f2002ff0dcdb3c51c1C02cf6A
+- CoverRouterV2: 0xebC3A783477FbD2720C024e16A8d63B8Db983D84
+- BondVault:     0x101F92fC506C1e60A2A0dD01eA29597EBf222d2B
 - isProtocolAutoPaused() → bool. If true, abort.
 - availableCapacityUSD() → uint256 (INTEGER DOLLARS, no decimals).
 

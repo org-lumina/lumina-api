@@ -410,6 +410,93 @@ export function getListingByListingId(listingId: string): ListingRow | undefined
     .get(listingId) as ListingRow | undefined;
 }
 
+export interface ListActiveListingsOpts {
+  /**
+   * Discount-vs-face-value filter (basis points).
+   *
+   * NOTE: Skipped intentionally. Face value is NOT stored on `listings` —
+   * it lives on the on-chain bond (BondVault) and isn't trivially
+   * derivable from `bond_id` + `amount` + `total_price_usdc` alone. To
+   * support this filter we would need to either (a) join against an as-
+   * yet-unbuilt bonds cache, or (b) call `bondVault.previewRedemption()`
+   * synchronously per row, which would defeat the purpose of having a
+   * read-only DB query. Left as a TODO for when the bonds cache lands.
+   * The route layer accepts the parameter (so the API surface is stable)
+   * but the value is ignored here.
+   */
+  minDiscountBps?: number;
+  /** Filter to listings whose `total_price_usdc` (BigInt) is ≤ this value. */
+  maxPriceUsdc?: bigint;
+  /**
+   * Sort order. `createdAt-desc` and `listedAt-desc` are aliases — both
+   * sort by the DB row's `created_at` (descending). The DB doesn't
+   * separately track on-chain block timestamps, so "listedAt" is
+   * implemented as the row's insertion time, which in practice tracks
+   * block time within seconds.
+   */
+  sortBy?: "price-asc" | "price-desc" | "createdAt-desc" | "listedAt-desc";
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Fetch active listings with optional price filter, sorting, and pagination.
+ *
+ * `total_price_usdc` is stored as TEXT (BigInt-safe). SQLite's `CAST(... AS
+ * INTEGER)` is sufficient up to 2^63 — USDC has 6 decimals and a single bond
+ * trade is well under that ceiling, so we use it for both the WHERE filter
+ * and the price-asc / price-desc sort. If a future listing ever exceeds 2^63
+ * (~9.2e18 raw USDC = ~$9.2T per listing), the comparison would silently
+ * truncate. Acceptable for V5.1 — guard with a runtime check at the route
+ * layer if that limit becomes plausible.
+ */
+export function listActiveListings(opts: ListActiveListingsOpts): {
+  rows: ListingRow[];
+  total: number;
+} {
+  const d = getDb();
+  const sortBy = opts.sortBy ?? "price-asc";
+
+  let orderBy: string;
+  switch (sortBy) {
+    case "price-asc":
+      orderBy = "CAST(total_price_usdc AS INTEGER) ASC, id ASC";
+      break;
+    case "price-desc":
+      orderBy = "CAST(total_price_usdc AS INTEGER) DESC, id DESC";
+      break;
+    case "createdAt-desc":
+    case "listedAt-desc":
+      orderBy = "created_at DESC, id DESC";
+      break;
+  }
+
+  const hasMaxPrice = opts.maxPriceUsdc !== undefined;
+  const maxPriceParam = hasMaxPrice ? opts.maxPriceUsdc!.toString() : null;
+
+  // Parameterised. We never inline a user-controlled value; only the
+  // statically-derived `orderBy` is interpolated, and it's restricted to
+  // one of four hard-coded strings above.
+  const whereSql =
+    "status = 'active'" +
+    (hasMaxPrice ? " AND CAST(total_price_usdc AS INTEGER) <= CAST(? AS INTEGER)" : "");
+
+  const dataSql = `SELECT * FROM listings WHERE ${whereSql} ORDER BY ${orderBy} LIMIT ? OFFSET ?`;
+  const countSql = `SELECT COUNT(*) AS n FROM listings WHERE ${whereSql}`;
+
+  const dataParams: Array<string | number> = [];
+  const countParams: Array<string | number> = [];
+  if (hasMaxPrice) {
+    dataParams.push(maxPriceParam!);
+    countParams.push(maxPriceParam!);
+  }
+  dataParams.push(opts.limit, opts.offset);
+
+  const rows = d.prepare(dataSql).all(...dataParams) as ListingRow[];
+  const totalRow = d.prepare(countSql).get(...countParams) as { n: number };
+  return { rows, total: totalRow.n };
+}
+
 // Marketplace purchases (POST /api/v1/marketplace/buy)
 export interface PurchaseRow {
   id: number;

@@ -1,5 +1,7 @@
 # Skill: Quote a parametric policy (on-chain)
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. Get a real-time premium quote directly from `CoverRouterV2.quotePremium`.
 
 ---
@@ -50,7 +52,7 @@ You are an AI agent quoting Lumina policies (Base Sepolia, chainId 84532).
 YOUR GOAL: Get exact premium for a given productId + cover.
 
 CONTEXT:
-- CoverRouterV2: 0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316
+- CoverRouterV2: 0xebC3A783477FbD2720C024e16A8d63B8Db983D84
 - Function: quotePremium(bytes32 productId, uint256 coverageAmount)
             returns (uint256 premium, uint256 payout)
 - Units: cover and premium are 6-dec USDC (parseUnits('1000', 6) for $1k)
@@ -72,7 +74,7 @@ On-chain. Use viem / ethers.
 
 ```typescript
 const [premium, payout] = await client.readContract({
-  address: '0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316',
+  address: '0xebC3A783477FbD2720C024e16A8d63B8Db983D84',
   abi: coverRouterV2Abi,
   functionName: 'quotePremium',
   args: [productId, parseUnits('1000', 6)],

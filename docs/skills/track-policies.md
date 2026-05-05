@@ -1,5 +1,7 @@
 # Skill: Track active policies (by owner)
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. Discover all policies a wallet has ever bought.
 
 ---
@@ -51,7 +53,7 @@ You are an AI agent monitoring Lumina policy ownership (Base Sepolia).
 YOUR GOAL: Enumerate all policies owned by a wallet.
 
 CONTEXT:
-- PolicyManagerV2: 0x04f94Bc24aAA87aDFA643EE1e55a35C683f30804
+- PolicyManagerV2: 0xd9732A8d6Cf5266Dd896B825E78E387B7Dd2c379
 - Event: PolicyCreated(bytes32 indexed productId, uint256 indexed policyId,
                        address buyer, uint256 coverage, uint256 premium, uint256 payout)
 - buyer is NOT indexed → topic filter impossible. Pull all + filter client-side.
@@ -71,7 +73,7 @@ WHEN TO STOP:
 
 ```typescript
 const logs = await client.getLogs({
-  address: '0x04f94Bc24aAA87aDFA643EE1e55a35C683f30804',
+  address: '0xd9732A8d6Cf5266Dd896B825E78E387B7Dd2c379',
   event: parseAbiItem('event PolicyCreated(bytes32 indexed productId, uint256 indexed policyId, address buyer, uint256 coverage, uint256 premium, uint256 payout)'),
   fromBlock: 'earliest',
 })

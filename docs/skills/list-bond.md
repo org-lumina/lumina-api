@@ -1,5 +1,7 @@
 # Skill: List bond for sale
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. Pre-maturity, sell your ClaimBonds at a discount on the secondary marketplace.
 
 ---
@@ -55,8 +57,8 @@ You are an AI agent listing Lumina bonds on the secondary marketplace
 YOUR GOAL: List N bonds from epoch E at price P.
 
 CONTEXT:
-- Marketplace: 0x863A7fB4A676106db4b03449b01AC5615c6C9D51
-- ClaimBond: 0x5304f6732a51995651f1B666525CFeC5Af74A541
+- Marketplace: 0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E
+- ClaimBond: 0x3d2F5DB2505367D00ef81c51AD3cA66159271730
 - Function: list(uint256 epochId, uint256 amount, uint256 priceUSDC)
             returns (uint256 listingId)
 - amount: INTEGER DOLLARS (= ERC-1155 token count)
@@ -91,7 +93,7 @@ if (!approved) {
 
 // List
 const txHash = await walletClient.writeContract({
-  address: '0x863A7fB4A676106db4b03449b01AC5615c6C9D51',
+  address: '0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E',
   abi: marketplaceAbi,
   functionName: 'list',
   args: [epochId, amountIntegerDollars, parseUnits('2400', 6)],

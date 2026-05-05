@@ -1,5 +1,7 @@
 # Skill: Quote via REST API
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 **For**: AI Agents · **Type**: read · **Difficulty**: ⭐
 
 ---
@@ -37,14 +39,14 @@ WHEN TO STOP:
 ### curl
 
 ```bash
-PRODUCT_ID="0xAc53Bf7Bb85Fcfb6d3c831F3AD9f6f79ebeeF99f"  # FlashBTC24h
+PRODUCT_ID="0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd"  # FlashBTC1h
 curl "https://lumina-api-production-ac85.up.railway.app/products/${PRODUCT_ID}/quote?cover=5000000000&duration=86400"
 ```
 
 ### TypeScript (fetch)
 
 ```typescript
-const productId = '0xAc53Bf7Bb85Fcfb6d3c831F3AD9f6f79ebeeF99f' // FlashBTC24h
+const productId = '0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd' // FlashBTC1h
 const cover = 5_000_000_000 // $5,000 in 6-dec USDC
 
 const res = await fetch(
@@ -57,7 +59,7 @@ const { premium, payout } = await res.json()
 
 ```python
 import requests
-product_id = '0xAc53Bf7Bb85Fcfb6d3c831F3AD9f6f79ebeeF99f'
+product_id = '0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd'
 res = requests.get(
     f'https://lumina-api-production-ac85.up.railway.app/products/{product_id}/quote',
     params={'cover': 5_000_000_000, 'duration': 86400},

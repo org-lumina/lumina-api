@@ -1,5 +1,7 @@
 # Skill: Watch oracle triggers
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. Get notified the moment a policy trigger fires.
 
 ---
@@ -41,7 +43,7 @@ You are an AI agent monitoring policy triggers on Lumina (Base Sepolia).
 YOUR GOAL: Detect when the agent's policies trigger and a payout fires.
 
 CONTEXT:
-- PolicyManagerV2: 0x04f94Bc24aAA87aDFA643EE1e55a35C683f30804
+- PolicyManagerV2: 0xd9732A8d6Cf5266Dd896B825E78E387B7Dd2c379
 - Event: PolicyTriggered(bytes32 indexed productId, uint256 indexed policyId,
                          address buyer, uint256 bondAmount, bytes32 reason)
 - bondAmount is in INTEGER DOLLARS (1 token = $1, no decimals)
@@ -68,7 +70,7 @@ const client = createPublicClient({
 })
 
 const unwatch = client.watchEvent({
-  address: '0x04f94Bc24aAA87aDFA643EE1e55a35C683f30804',
+  address: '0xd9732A8d6Cf5266Dd896B825E78E387B7Dd2c379',
   event: parseAbiItem('event PolicyTriggered(bytes32 indexed productId, uint256 indexed policyId, address buyer, uint256 bondAmount, bytes32 reason)'),
   onLogs: (logs) => {
     for (const log of logs) {

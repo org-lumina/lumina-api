@@ -1,5 +1,7 @@
 # Skill: Buy bond from marketplace
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. Buy a discounted ClaimBond off the secondary marketplace, redeem at maturity for full face value.
 
 ---
@@ -59,8 +61,8 @@ You are an AI agent buying secondary bonds on Lumina (Base Sepolia).
 YOUR GOAL: Buy listing L for the asked priceUSDC.
 
 CONTEXT:
-- Marketplace: 0x863A7fB4A676106db4b03449b01AC5615c6C9D51
-- USDC (mock): 0x63D340AE7229BB464bC801f225651341ebcD3693
+- Marketplace: 0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E
+- USDC (mock): 0xD944d8e5D8329994D83950872Ec210891d3Ab6AE
 - Function: executeBuy(uint256 listingId)
 - Buyer fee: 1.5% of priceUSDC (paid by buyer in addition to price)
 - Total spend: priceUSDC * 1.015
@@ -82,7 +84,7 @@ WHEN TO STOP:
 
 ```typescript
 const [seller, epochId, amount, priceUSDC, active] = await client.readContract({
-  address: '0x863A7fB4A676106db4b03449b01AC5615c6C9D51',
+  address: '0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E',
   abi: marketplaceAbi,
   functionName: 'getListing',
   args: [listingId],
