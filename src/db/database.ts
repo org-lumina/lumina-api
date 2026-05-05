@@ -217,6 +217,53 @@ export function revokeKey(keyId: number): boolean {
   return result.changes > 0;
 }
 
+/**
+ * Self-service supervisor view: list all keys (active + revoked) for a wallet.
+ * Returns the redacted shape — `key_hash` truncated, no plaintext, no
+ * derivable secrets. Used by the agent supervisor UI to show "your keys".
+ */
+export function listKeysForWallet(wallet: string): Array<
+  Omit<ApiKeyRecord, "key_hash"> & { hash_prefix: string; tier: string }
+> {
+  const d = getDb();
+  const w = wallet.toLowerCase();
+  const rows = d
+    .prepare(
+      `SELECT k.id, k.agent_id, k.key_hash, k.label, k.created_at, k.revoked_at, a.tier
+         FROM api_keys k
+         JOIN agents a ON a.id = k.agent_id
+        WHERE a.wallet = ?
+        ORDER BY k.created_at DESC`
+    )
+    .all(w) as (ApiKeyRecord & { tier: string })[];
+  return rows.map((r) => ({
+    id: r.id,
+    agent_id: r.agent_id,
+    label: r.label,
+    created_at: r.created_at,
+    revoked_at: r.revoked_at,
+    hash_prefix: r.key_hash.slice(0, 8),
+    tier: r.tier,
+  }));
+}
+
+/**
+ * Verify that an api_keys row belongs to `wallet` before allowing a self-revoke
+ * by id. The /agent route uses this so an agent can only revoke its own keys.
+ */
+export function isKeyOwnedByWallet(keyId: number, wallet: string): boolean {
+  const d = getDb();
+  const w = wallet.toLowerCase();
+  const row = d
+    .prepare(
+      `SELECT 1 FROM api_keys k
+         JOIN agents a ON a.id = k.agent_id
+        WHERE k.id = ? AND a.wallet = ?`
+    )
+    .get(keyId, w);
+  return Boolean(row);
+}
+
 // Policies
 export interface PolicyRow {
   id: number;

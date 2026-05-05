@@ -3,16 +3,11 @@ import type { Request, Response, NextFunction } from "express";
 import { findActiveKeyByHash } from "../db/database";
 import { HttpError } from "./error";
 
-declare module "express-serve-static-core" {
-  interface Request {
-    agent?: {
-      id: number;
-      wallet: string;
-      tier: "free" | "paid";
-      keyId: number;
-    };
-  }
-}
+// `req.agent` augmentation moved to `src/types/express.d.ts` (declare
+// global namespace Express). Keeping it here via `declare module
+// "express-serve-static-core"` failed under pnpm's nested @types
+// layout — the package is only available transitively through
+// @types/express, so tsc reports it as unresolvable.
 
 export function hashApiKey(key: string): string {
   return createHash("sha256").update(key).digest("hex");

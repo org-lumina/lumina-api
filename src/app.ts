@@ -8,6 +8,7 @@ import { bondsAuthRouter } from "./routes/bonds";
 import { marketplaceAuthRouter } from "./routes/marketplace";
 import { keysRouter } from "./routes/keys";
 import { oracleAuthRouter } from "./routes/oracle";
+import { agentRouter } from "./routes/agent";
 import { errorHandler, notFoundHandler } from "./middlewares/error";
 import { authIpLimiter, publicIpLimiter } from "./middlewares/rateLimit";
 
@@ -35,6 +36,11 @@ export function createApp(): Application {
 
   // Admin (admin token + adminLimiter inside the router).
   app.use("/api/v1/keys", keysRouter);
+
+  // Self-service supervisor surface — POST /onboard is public (signed by
+  // the wallet). GET/DELETE /keys are authenticated via x-api-key behind
+  // the same IP-rate-limit gate as the other authenticated routes.
+  app.use("/api/v1/agent", authIpLimiter, agentRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
