@@ -1,5 +1,7 @@
 # Skill: Check policy detail
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. Look up a single policy by `(productId, policyId)`.
 
 ---
@@ -59,7 +61,7 @@ WHEN TO STOP:
 #### curl
 
 ```bash
-PRODUCT_ID="0xAc53Bf7Bb85Fcfb6d3c831F3AD9f6f79ebeeF99f"
+PRODUCT_ID="0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd"
 POLICY_ID="42"
 curl "https://lumina-api-production-ac85.up.railway.app/policies/${PRODUCT_ID}/${POLICY_ID}"
 ```

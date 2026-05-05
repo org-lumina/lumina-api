@@ -1,5 +1,7 @@
 # Skill: Approve USDC
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 > **Skill ID**: `approve-usdc` · **Audience**: Human · **Difficulty**: ⭐ Easy
 
 ## What this does
@@ -18,9 +20,9 @@ Confirmed by source: `CoverRouterV2.sol:210` — `usdc.safeTransferFrom(buyer, a
 | | Sepolia testnet (V5.1) |
 |---|---|
 | Token | USDC (MockUSDC) |
-| Token address | `0x63D340AE7229BB464bC801f225651341ebcD3693` |
+| Token address | `0xD944d8e5D8329994D83950872Ec210891d3Ab6AE` |
 | Function | `approve(address spender, uint256 amount)` |
-| Spender (CoverRouterV2) | `0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316` |
+| Spender (CoverRouterV2) | `0xebC3A783477FbD2720C024e16A8d63B8Db983D84` |
 | Decimals | 6 (USDC standard) |
 
 ## Code examples
@@ -31,8 +33,8 @@ Confirmed by source: `CoverRouterV2.sol:210` — `usdc.safeTransferFrom(buyer, a
 import { createWalletClient, custom, parseUnits, erc20Abi } from 'viem'
 import { baseSepolia } from 'viem/chains'
 
-const USDC = '0x63D340AE7229BB464bC801f225651341ebcD3693'
-const COVER_ROUTER = '0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316'
+const USDC = '0xD944d8e5D8329994D83950872Ec210891d3Ab6AE'
+const COVER_ROUTER = '0xebC3A783477FbD2720C024e16A8d63B8Db983D84'
 
 const client = createWalletClient({
   chain: baseSepolia,
@@ -64,10 +66,10 @@ function ApproveButton({ premium }: { premium: bigint }) {
     <button
       onClick={() =>
         writeContract({
-          address: '0x63D340AE7229BB464bC801f225651341ebcD3693',
+          address: '0xD944d8e5D8329994D83950872Ec210891d3Ab6AE',
           abi: erc20Abi,
           functionName: 'approve',
-          args: ['0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316', premium],
+          args: ['0xebC3A783477FbD2720C024e16A8d63B8Db983D84', premium],
         })
       }
       disabled={isPending}

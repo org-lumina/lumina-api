@@ -1,5 +1,7 @@
 # Skill: Connect Wallet via RainbowKit
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 > **Skill ID**: `connect-wallet` · **Audience**: Human · **Difficulty**: ⭐ Easy
 
 ## What this does
@@ -31,7 +33,7 @@ The frontend bundles RainbowKit's `connectorsForWallets` with this set:
 | RPC URL (default) | `https://sepolia.base.org` (overridable via `NEXT_PUBLIC_RPC_URL`) |
 | Explorer | https://sepolia.basescan.org |
 | Native gas token | ETH (Sepolia) |
-| USDC token (MockUSDC) | `0x63D340AE7229BB464bC801f225651341ebcD3693` |
+| USDC token (MockUSDC) | `0xD944d8e5D8329994D83950872Ec210891d3Ab6AE` |
 
 ## Auto-switch behavior
 

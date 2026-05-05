@@ -1,5 +1,7 @@
 # Skill: Get bonds owned (by holder)
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. List the ClaimBond holdings of any wallet.
 
 ---
@@ -52,7 +54,7 @@ YOUR GOAL: For a given wallet, return the (epochId, balance, matured) for
 every bond it holds.
 
 CONTEXT:
-- ClaimBond: 0x5304f6732a51995651f1B666525CFeC5Af74A541  (ERC-1155)
+- ClaimBond: 0x3d2F5DB2505367D00ef81c51AD3cA66159271730  (ERC-1155)
 - Event: BondsMinted(uint256 indexed epochId, address indexed to, uint256 usdAmount)
   → both epochId and `to` are INDEXED, so topic filter on `to` works directly
 - balanceOf(account, epochId) returns INTEGER DOLLARS (1 token = $1, no decimals)
@@ -75,7 +77,7 @@ WHEN TO STOP:
 
 ```typescript
 const mints = await client.getLogs({
-  address: '0x5304f6732a51995651f1B666525CFeC5Af74A541',
+  address: '0x3d2F5DB2505367D00ef81c51AD3cA66159271730',
   event: parseAbiItem('event BondsMinted(uint256 indexed epochId, address indexed to, uint256 usdAmount)'),
   args: { to: wallet },
   fromBlock: 'earliest',

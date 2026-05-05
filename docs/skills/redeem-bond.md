@@ -1,5 +1,7 @@
 # Skill: Redeem matured bond
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. After ~24 months, exchange your matured ClaimBonds for $LUMINA at the current market price.
 
 ---
@@ -60,7 +62,7 @@ You are an AI agent redeeming Lumina bonds (Base Sepolia).
 YOUR GOAL: Burn matured ClaimBonds and receive LUMINA at market price.
 
 CONTEXT:
-- BondVault: 0x1747CDA7F84BEc4f2002ff0dcdb3c51c1C02cf6A
+- BondVault: 0x101F92fC506C1e60A2A0dD01eA29597EBf222d2B
 - Function: redeemBond(uint256 epochId, uint256 usdAmount)
 - usdAmount is INTEGER DOLLARS (= ERC-1155 token count, NOT 6-dec USDC, NOT 18-dec wei)
 - claimBond.balanceOf(msg.sender, epochId) >= usdAmount required
@@ -85,7 +87,7 @@ const balance = await client.readContract({
 })
 
 const txHash = await walletClient.writeContract({
-  address: '0x1747CDA7F84BEc4f2002ff0dcdb3c51c1C02cf6A',
+  address: '0x101F92fC506C1e60A2A0dD01eA29597EBf222d2B',
   abi: bondVaultAbi,
   functionName: 'redeemBond',
   args: [epochId, balance],   // usdAmount = balance (integer dollars)

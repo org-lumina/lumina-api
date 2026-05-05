@@ -1,6 +1,7 @@
 import express, { type Application } from "express";
 import helmet from "helmet";
 import cors, { type CorsOptions } from "cors";
+import swaggerUi from "swagger-ui-express";
 import { healthRouter } from "./routes/health";
 import { productsRouter } from "./routes/products";
 import { policiesPublicRouter, policiesAuthRouter } from "./routes/policies";
@@ -10,6 +11,7 @@ import { marketplaceAuthRouter } from "./routes/marketplace";
 import { keysRouter } from "./routes/keys";
 import { oracleAuthRouter } from "./routes/oracle";
 import { agentRouter } from "./routes/agent";
+import { openapiDocument } from "./openapi";
 import { errorHandler, notFoundHandler } from "./middlewares/error";
 import { authIpLimiter, publicIpLimiter } from "./middlewares/rateLimit";
 
@@ -83,6 +85,21 @@ export function createApp(): Application {
   // the wallet). GET/DELETE /keys are authenticated via x-api-key behind
   // the same IP-rate-limit gate as the other authenticated routes.
   app.use("/api/v1/agent", authIpLimiter, agentRouter);
+
+  // OpenAPI spec + Swagger UI — both unauthenticated, gated by the public
+  // IP limiter. The spec is the source of truth for external agents that
+  // want a machine-readable contract instead of parsing the README.
+  app.get("/openapi.json", publicIpLimiter, (_req, res) => {
+    res.json(openapiDocument);
+  });
+  app.use(
+    "/api-docs",
+    publicIpLimiter,
+    swaggerUi.serve,
+    swaggerUi.setup(openapiDocument, {
+      customSiteTitle: "Lumina API — interactive docs",
+    })
+  );
 
   app.use(notFoundHandler);
   app.use(errorHandler);

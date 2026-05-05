@@ -1,5 +1,7 @@
 # Skill: Generate API Key
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 > **Skill ID**: `generate-api-key` · **Audience**: Agent · **Difficulty**: ⭐⭐ Medium
 
 ## What this does
@@ -80,7 +82,7 @@ const res = await fetch('https://lumina-api-production-ac85.up.railway.app/api/v
     'x-api-key': apiKey,
   },
   body: JSON.stringify({
-    productId: '0x77c2A7cA53ED5cbDe66cE220647d2c213133f2a9', // FlashBTC1h
+    productId: '0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd', // FlashBTC1h
     coverageAmount: 5000_000000, // $5,000 in 6-dec USDC
   }),
 })

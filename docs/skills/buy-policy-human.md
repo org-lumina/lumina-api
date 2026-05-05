@@ -1,5 +1,7 @@
 # Skill: Buy policy as Human (direct contract)
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 **For**: Humans · **Difficulty**: ⭐⭐ · **Time**: ~2 minutes
 
 ---

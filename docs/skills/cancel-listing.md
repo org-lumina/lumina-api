@@ -1,5 +1,7 @@
 # Skill: Cancel an open listing
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. Pull a listing off the marketplace before someone buys it.
 
 ---
@@ -46,7 +48,7 @@ You are an AI agent canceling a Lumina marketplace listing (Base Sepolia).
 YOUR GOAL: Cancel listing L. Bond returns to your wallet.
 
 CONTEXT:
-- Marketplace: 0x863A7fB4A676106db4b03449b01AC5615c6C9D51
+- Marketplace: 0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E
 - Function: cancel(uint256 listingId)
 - Only the original seller can cancel; otherwise revert
 - No fees charged on cancellation
@@ -65,7 +67,7 @@ WHEN TO STOP:
 
 ```typescript
 const txHash = await walletClient.writeContract({
-  address: '0x863A7fB4A676106db4b03449b01AC5615c6C9D51',
+  address: '0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E',
   abi: marketplaceAbi,
   functionName: 'cancel',
   args: [listingId],

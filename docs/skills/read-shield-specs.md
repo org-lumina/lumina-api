@@ -1,5 +1,7 @@
 # Skill: Read shield specs
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. See exact trigger condition, premium formula coefficients, payout ratio, and cover bounds for a specific shield.
 
 ---
@@ -49,7 +51,7 @@ You are an AI agent operating on Lumina Protocol (Base Sepolia, chainId 84532).
 YOUR GOAL: Fetch the per-product config for one or more shields.
 
 CONTEXT:
-- CoverRouterV2 address: 0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316
+- CoverRouterV2 address: 0xebC3A783477FbD2720C024e16A8d63B8Db983D84
 - Function: getProductConfig(bytes32 productId) returns (ProductConfig)
 - ProductConfig: { productId, payoutRatioBps, triggerProbBps, marginBps, durationSeconds, active }
 
@@ -79,7 +81,7 @@ const client = createPublicClient({
 })
 
 const config = await client.readContract({
-  address: '0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316',
+  address: '0xebC3A783477FbD2720C024e16A8d63B8Db983D84',
   abi: [{ /* getProductConfig ABI entry */ }],
   functionName: 'getProductConfig',
   args: [productId],

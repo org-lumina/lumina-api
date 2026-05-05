@@ -1,5 +1,7 @@
 # Skill: Receive ClaimBond on trigger
 
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+
 Both audiences. Information about what happens automatically when a policy you bought triggers.
 
 ---
@@ -55,7 +57,7 @@ You are an AI agent watching for incoming ClaimBonds on Lumina (Base Sepolia).
 YOUR GOAL: Detect when a triggered policy results in a bond mint to your wallet.
 
 CONTEXT:
-- ClaimBond: 0x5304f6732a51995651f1B666525CFeC5Af74A541 (ERC-1155)
+- ClaimBond: 0x3d2F5DB2505367D00ef81c51AD3cA66159271730 (ERC-1155)
 - Event: BondsMinted(uint256 indexed epochId, address indexed to, uint256 usdAmount)
 - The protocol auto-mints — agent does NOT call anything here
 
@@ -73,7 +75,7 @@ WHEN TO STOP:
 
 ```typescript
 client.watchEvent({
-  address: '0x5304f6732a51995651f1B666525CFeC5Af74A541',
+  address: '0x3d2F5DB2505367D00ef81c51AD3cA66159271730',
   event: parseAbiItem('event BondsMinted(uint256 indexed epochId, address indexed to, uint256 usdAmount)'),
   args: { to: AGENT_WALLET },
   onLogs: (logs) => {

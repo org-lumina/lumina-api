@@ -9,6 +9,7 @@ import {
   getListingByListingId,
   getListingByTxHash,
   getPurchaseByTxHash,
+  listActiveListings,
   recordListing,
   recordPurchaseAndFinalizeListing,
 } from "../db/database";
@@ -18,6 +19,57 @@ export const marketplaceAuthRouter = Router();
 const TxHashSchema = z.string().regex(/^0x[0-9a-fA-F]{64}$/, "txHash must be 0x-prefixed 32-byte hex");
 const AddressSchema = z.string().refine(ethers.isAddress, "must be a valid 0x address");
 const UintStringSchema = z.string().regex(/^\d+$/, "must be a positive integer string");
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /listings — discovery endpoint for off-chain agents (agent-ux Day 1-3)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Without this route, agents have no way to scan available listings short of
+// scraping `eth_getLogs` for `Listed` events on the marketplace contract.
+// Reads the same authoritative SQLite store populated by POST /list, so we
+// only ever surface listings that this API has verified end-to-end.
+
+const ListListingsQuerySchema = z.object({
+  // Accepted but currently ignored — see DB-layer note in
+  // `listActiveListings` (face value isn't on the listing row).
+  minDiscountBps: z.coerce.number().int().min(0).max(10000).optional(),
+  maxPriceUsdc: z.string().regex(/^\d+$/).optional(),
+  sortBy: z.enum(["price-asc", "price-desc", "createdAt-desc", "listedAt-desc"]).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+marketplaceAuthRouter.get("/listings", authMiddleware, apiLimiter, (req, res, next) => {
+  try {
+    if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
+    const q = ListListingsQuerySchema.parse(req.query);
+    const { rows, total } = listActiveListings({
+      minDiscountBps: q.minDiscountBps,
+      maxPriceUsdc: q.maxPriceUsdc ? BigInt(q.maxPriceUsdc) : undefined,
+      sortBy: q.sortBy ?? "price-asc",
+      limit: q.limit,
+      offset: q.offset,
+    });
+
+    res.json({
+      count: rows.length,
+      total,
+      listings: rows.map((r) => ({
+        listingId: r.listing_id,
+        seller: r.seller_address,
+        bondId: r.bond_id,
+        amount: r.amount,
+        totalPriceUsdc: r.total_price_usdc,
+        txHash: r.tx_hash,
+        blockNumber: r.block_number,
+        createdAt: new Date(r.created_at).toISOString(),
+        status: r.status,
+      })),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
 
 // ────────────────────────────────────────────────────────────────────────────
 // POST /list — A.1.5
