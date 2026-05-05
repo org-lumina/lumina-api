@@ -7,6 +7,7 @@ import { redeemAuthRouter } from "./routes/redeem";
 import { bondsAuthRouter } from "./routes/bonds";
 import { marketplaceAuthRouter } from "./routes/marketplace";
 import { keysRouter } from "./routes/keys";
+import { oracleAuthRouter } from "./routes/oracle";
 import { errorHandler, notFoundHandler } from "./middlewares/error";
 import { authIpLimiter, publicIpLimiter } from "./middlewares/rateLimit";
 
@@ -30,6 +31,7 @@ export function createApp(): Application {
   app.use("/api/v1/redeem", authIpLimiter, redeemAuthRouter);
   app.use("/api/v1/bonds", authIpLimiter, bondsAuthRouter);
   app.use("/api/v1/marketplace", authIpLimiter, marketplaceAuthRouter);
+  app.use("/api/v1/oracle", authIpLimiter, oracleAuthRouter);
 
   // Admin (admin token + adminLimiter inside the router).
   app.use("/api/v1/keys", keysRouter);
