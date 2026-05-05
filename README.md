@@ -64,6 +64,8 @@ npm test
 |--------|------|-------------|
 | POST | `/api/v1/policies` | Buy a policy via relayer. Body: `{ productId, coverageAmount, asset, buyer }`. Optional `Idempotency-Key` header. |
 | GET | `/api/v1/policies?owner=0x...` | List policies indexed by buyer. Defaults to caller's wallet. |
+| POST | `/api/v1/oracle/sign-proof` | Returns an EIP-712 signed `PriceProof` for the chosen asset, suitable to pass into `CoverRouterV2.submitTrigger(productId, policyId, oracleProof)`. Body: `{ asset: "BTC" | "ETH" }`. The signer's address must equal `LuminaOracleV2.oracleKey()` on-chain. See [`docs/architecture/ORACLE-V2.md`](https://github.com/org-lumina/LUMINA-PROTOCOL/blob/main/docs/architecture/ORACLE-V2.md) in the protocol repo. |
+| GET | `/api/v1/oracle/signer` | Returns the address whose private key signs `/sign-proof` outputs. Useful for clients that want to assert against `oracleKey()` before submitting a trigger. |
 
 ### Admin (`x-admin-token`)
 
