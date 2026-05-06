@@ -157,4 +157,5 @@ It does **not** need a USDC balance and does **not** need to approve anything.
 ## Notes for operators
 
 - The DB at `DB_PATH` holds API keys, agents, indexed policies, and idempotency cache. Back it up — on Railway with `DB_PATH=/tmp/...` it is wiped on every redeploy. For persistence across deploys, mount a Railway Volume and point `DB_PATH` at it.
+- `DEPLOYMENT_BLOCK_CLAIMBOND` (optional) — block at which the ClaimBond contract was deployed; bonds enumeration paginates `eth_getLogs` from this block. Falls back to `latest - 500_000` when unset.
 - `helmet()` + `trust proxy=1` are enabled. If you put a proxy in front of Railway, `req.ip` will reflect the client.
