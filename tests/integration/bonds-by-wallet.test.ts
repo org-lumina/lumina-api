@@ -26,12 +26,23 @@ const fakeClaimBond = {
     EpochCreated: jest.fn(() => ({ kind: "EpochCreated" })),
     TransferSingle: jest.fn(() => ({ kind: "TransferSingle" })),
   },
-  queryFilter: jest.fn(async (filter: { kind: string }) => {
+  queryFilter: jest.fn(async (filter: { kind: string }, fromBlock?: number, toBlock?: number) => {
+    // Test mock honours the `(filter, fromBlock, toBlock)` shape used by
+    // the production paginator so each fixture is only emitted by the
+    // window that actually covers its block — otherwise the same epoch
+    // would be returned by every window and the service would count it N
+    // times.
+    const inRange = (bn: number): boolean => {
+      if (fromBlock === undefined || toBlock === undefined) return true;
+      return bn >= fromBlock && bn <= toBlock;
+    };
     if (filter.kind === "EpochCreated") {
-      return fixtures.map((f) => ({
-        blockNumber: f.createdBlock,
-        args: { epochId: f.epochId, maturityDate: BigInt(f.maturityUnix) },
-      }));
+      return fixtures
+        .filter((f) => inRange(f.createdBlock))
+        .map((f) => ({
+          blockNumber: f.createdBlock,
+          args: { epochId: f.epochId, maturityDate: BigInt(f.maturityUnix) },
+        }));
     }
     return []; // TransferSingle scan not exercised in default tests
   }),
@@ -57,7 +68,10 @@ const fakeProvider = {
     const f = fixtures.find((x) => x.createdBlock === bn);
     return f ? { timestamp: f.createdAtUnix } : null;
   }),
-  getBlockNumber: jest.fn().mockResolvedValue(99999),
+  // Must be >= the highest fixture createdBlock (1000 + epochId ~= 203804)
+  // and within `LOG_SCAN_FALLBACK_LOOKBACK` of it so getStartBlock() == 0
+  // covers every fixture in a single window.
+  getBlockNumber: jest.fn().mockResolvedValue(300_000),
   getBalance: jest.fn().mockResolvedValue(0n),
   getNetwork: jest.fn().mockResolvedValue({ chainId: 84532n }),
 };
@@ -89,6 +103,10 @@ beforeAll(() => {
 
 beforeEach(() => {
   fixtures.length = 0;
+  // Force the paginator to start from genesis so fixture blocks (~200_000)
+  // are always within the scan range, regardless of any DEPLOYMENT_BLOCK_CLAIMBOND
+  // value that may have leaked in from a developer's .env.
+  process.env.DEPLOYMENT_BLOCK_CLAIMBOND = "0";
   _resetBondsCache();
   fakeClaimBond.queryFilter.mockClear();
   fakeClaimBond.balanceOf.mockClear();

@@ -1,8 +1,90 @@
+import type { BaseContract, DeferredTopicFilter, EventLog, Log } from "ethers";
 import { bondVault, claimBond, provider } from "../utils/ethers";
 import { logger } from "../utils/logger";
 import { HttpError } from "../middlewares/error";
 
 export type BondStatusFilter = "active" | "matured" | "redeemed" | "all";
+
+// ────────────────────────────────────────────────────────────────────────
+// getLogs paginator (founder-locked policy)
+// ────────────────────────────────────────────────────────────────────────
+// Public RPCs (Alchemy free tier, base-sepolia.org) cap eth_getLogs to a
+// small block range. A wallet-scoped query against a contract deployed
+// hundreds of thousands of blocks ago therefore needs to be split into
+// fixed-size windows. Window size is 45 000 blocks per the founder spec.
+// Retry policy per window: 3 attempts with exponential backoff (1s/2s/4s).
+// After 3 failures on a single window we log a warning and CONTINUE with
+// the next window — a partial result is still preferable to a 503.
+const LOG_SCAN_WINDOW = 45_000;
+const LOG_SCAN_FALLBACK_LOOKBACK = 500_000;
+const LOG_SCAN_MAX_RETRIES = 3;
+
+/**
+ * Resolve the lower bound for log scans. Honours an explicit
+ * `DEPLOYMENT_BLOCK_CLAIMBOND` env var (the canonical source) and falls
+ * back to `latest - 500_000` when unset, which covers ~10 days on Base
+ * (2s blocks) — enough to find recent bond activity without forcing a
+ * full chain scan on a misconfigured deploy.
+ */
+export async function getStartBlock(latestBlockOverride?: number): Promise<number> {
+  const fromEnv = process.env.DEPLOYMENT_BLOCK_CLAIMBOND;
+  if (fromEnv && fromEnv.trim().length > 0) {
+    const n = Number(fromEnv);
+    if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+  }
+  const latest = latestBlockOverride ?? (await provider.getBlockNumber());
+  return Math.max(0, latest - LOG_SCAN_FALLBACK_LOOKBACK);
+}
+
+/**
+ * Iterate `[fromBlock, toBlock]` in fixed-size windows, collecting all
+ * logs that match `filter`. Each window is retried up to
+ * `LOG_SCAN_MAX_RETRIES` times with exponential backoff. A persistently
+ * failing window is logged and skipped — the scan as a whole keeps going.
+ */
+export async function paginatedQueryFilter(
+  contract: BaseContract,
+  filter: DeferredTopicFilter,
+  fromBlock: number,
+  toBlock: number,
+  label: string
+): Promise<Array<EventLog | Log>> {
+  const out: Array<EventLog | Log> = [];
+  if (toBlock < fromBlock) return out;
+
+  let from = fromBlock;
+  while (from <= toBlock) {
+    const to = Math.min(from + LOG_SCAN_WINDOW - 1, toBlock);
+    const t0 = Date.now();
+    let attempt = 0;
+    let logs: Array<EventLog | Log> | undefined;
+    let lastErr: unknown;
+    while (attempt < LOG_SCAN_MAX_RETRIES) {
+      try {
+        logs = await contract.queryFilter(filter, from, to);
+        break;
+      } catch (err) {
+        lastErr = err;
+        attempt += 1;
+        if (attempt >= LOG_SCAN_MAX_RETRIES) break;
+        const delayMs = 1000 * 2 ** (attempt - 1); // 1000, 2000, 4000
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+    if (logs) {
+      out.push(...logs);
+      console.log(
+        `[bonds] ${label} window [${from}, ${to}] -> ${logs.length} logs (${Date.now() - t0}ms)`
+      );
+    } else {
+      console.warn(
+        `[bonds] ${label} window [${from}, ${to}] FAILED after ${LOG_SCAN_MAX_RETRIES} attempts, skipping. lastErr=${(lastErr as Error)?.message ?? String(lastErr)}`
+      );
+    }
+    from = to + 1;
+  }
+  return out;
+}
 
 export interface BondInfo {
   bondId: string;          // alias of epochId — every ClaimBond ERC-1155 token-id is its epochId
@@ -48,7 +130,15 @@ function isoFromUnix(seconds: bigint | number): string {
  */
 async function enumerateEpochs(): Promise<Array<{ epochId: bigint; createdAt: string }>> {
   const filter = claimBond.filters.EpochCreated();
-  const events = await claimBond.queryFilter(filter);
+  const latest = await provider.getBlockNumber();
+  const fromBlock = await getStartBlock(latest);
+  const events = await paginatedQueryFilter(
+    claimBond,
+    filter as unknown as DeferredTopicFilter,
+    fromBlock,
+    latest,
+    "EpochCreated"
+  );
 
   const blockTimestamps = new Map<number, bigint>();
   // Dedupe by blockNumber so the same block is only fetched once.
@@ -75,7 +165,15 @@ async function enumerateEpochs(): Promise<Array<{ epochId: bigint; createdAt: st
  */
 async function enumerateHistoricalEpochs(wallet: string): Promise<bigint[]> {
   const filter = claimBond.filters.TransferSingle(null, null, wallet);
-  const events = await claimBond.queryFilter(filter);
+  const latest = await provider.getBlockNumber();
+  const fromBlock = await getStartBlock(latest);
+  const events = await paginatedQueryFilter(
+    claimBond,
+    filter as unknown as DeferredTopicFilter,
+    fromBlock,
+    latest,
+    `TransferSingle->${wallet.slice(0, 8)}`
+  );
   const ids = new Set<string>();
   for (const ev of events) {
     const args = ("args" in ev ? ev.args : undefined) as { id?: bigint } | undefined;
@@ -160,7 +258,9 @@ export async function getBondsByWallet(wallet: string, opts: ListBondsOptions): 
   let allBonds: BondInfo[];
   if (hit && hit.expiresAt > now) {
     allBonds = hit.data;
+    console.log(`[bonds] cache hit for ${w} (${allBonds.length} bonds)`);
   } else {
+    const tStart = Date.now();
     try {
       allBonds = await loadAllBondsForWallet(w, opts.status === "redeemed");
     } catch (e) {
@@ -169,6 +269,7 @@ export async function getBondsByWallet(wallet: string, opts: ListBondsOptions): 
       throw new HttpError(503, `RPC failure listing bonds: ${msg}. Retry shortly.`, "rpc_unavailable");
     }
     cache.set(cacheKey, { data: allBonds, expiresAt: now + CACHE_TTL_MS });
+    console.log(`[bonds] total bonds for ${w}: ${allBonds.length} (${Date.now() - tStart}ms total)`);
   }
 
   // Apply status filter
