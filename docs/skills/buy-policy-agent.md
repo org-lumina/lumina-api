@@ -1,6 +1,6 @@
 # Skill: Buy policy as Agent (via API)
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base Sepolia 84532) but verify before use.
 
 **For**: AI Agents · **Type**: write · **Difficulty**: ⭐⭐
 
@@ -10,36 +10,40 @@
 
 Agent posts an authenticated request to the Lumina API. The API's relayer signs and sends `purchasePolicyFor` on-chain — the agent does NOT pay gas, does NOT need a wallet UI, and does NOT need to approve USDC themselves. The relayer's wallet is a pre-authorized address registered via `CoverRouterV2.setRelayer`.
 
-## productId computation
+## ⚡ TL;DR — pass `productName` and the API resolves everything
 
-`productId` is the **bytes32 keccak256 hash** of a canonical product name string. Compute it client-side; do NOT hardcode unless you understand the risk that a re-deploy invalidates it.
+SDK 0.3.0+ and the latest `/api/v1/policies` accept `productName` (a canonical
+product label) and auto-resolve both the bytes32 `productId` AND the per-shield
+`asset` literal. **Do this** unless you have a specific reason not to.
 
 ```ts
-import { keccak256, toUtf8Bytes } from 'ethers'
-const productId = keccak256(toUtf8Bytes('FLASHBTC24-001'))
-// → 0xdc5bcc7d6e2e9ca89d46d4f6672db80985d5e86509243dcca44a4e87d871a7b9
+const policy = await lumina.policies.purchase({
+  productName: 'FLASHBTC1H-001',   // SDK derives productId hash + asset='BTC'
+  buyer: '0xYourWalletAddress',
+  coverageAmount: '50000000',      // $50 in 6-dec USDC
+})
 ```
 
-```python
-from eth_utils import keccak
-product_id = '0x' + keccak(text='FLASHBTC24-001').hex()
-```
+## ⚠️ The asset is per-shield, not a global "USDC"
 
-### Available canonical product names (Base Sepolia, V5.1)
+Every shield validates `params.asset` against a **hardcoded literal**.
+Hardcoding `asset: 'USDC'` for every product reverts 7-of-9 with
+`InvalidAsset(bytes32("USDC"))`. The payment token is always USDC; the asset
+is the *what-it-covers* tag.
 
-Each row is verified against `/products` and `keccak256(name)` on 2026-05-05.
+| Name (keccak input) | productId (bytes32) | Expected `asset` | Duration |
+|---|---|---|---|
+| `FLASHBTC1H-001` | `0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd` | `BTC` | 1 h |
+| `FLASHBTC4H-001` | `0x0c8e45caa686271a71fb299ac5faab90520dbbd629aa8d4ad18e87d61c57a03d` | `BTC` | 4 h |
+| `FLASHBTC24-001` | `0xdc5bcc7d6e2e9ca89d46d4f6672db80985d5e86509243dcca44a4e87d871a7b9` | `BTC` | 24 h |
+| `FLASHBTC48-001` | `0xb630608784616003f974941232dd618003e5a182176cc14010db95cda2ab1ee8` | `BTC` | 48 h |
+| `FLASHETH1H-001` | `0x6cedbccfc3dc131aec7bdd9a9761ac0a8e665daa87763328ffca700f9b678915` | `ETH` | 1 h |
+| `FLASHETH24-001` | `0xcc03aef924fc23ad01e6391af37bcfdb9ad40cce7c76218e51be62c38167f240` | `ETH` | 24 h |
+| `FLASHETH48-001` | `0x89a37df7cf246013d58a6b121e57b1e6417cea854b354183025ed0b41663712d` | `ETH` | 48 h |
+| `MICRODEPEG-001` | `0x317c1a64236e5c2d71cc0144e2e1ec3c5372f3098bf060dee1fe9cadb8943640` | `USDT` | 7 d |
+| `RATESHOCK-001` | `0x8ae1e4140e1713abfdbbba9bc4cbf4afdc0d60e3f98687bd02d6dad5a60a347f` | `USDC` | 7 d |
 
-| Name (keccak input) | productId (bytes32) | Duration |
-|---|---|---|
-| `FLASHBTC1H-001` | `0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd` | 1 h |
-| `FLASHBTC4H-001` | `0x0c8e45caa686271a71fb299ac5faab90520dbbd629aa8d4ad18e87d61c57a03d` | 4 h |
-| `FLASHBTC24-001` | `0xdc5bcc7d6e2e9ca89d46d4f6672db80985d5e86509243dcca44a4e87d871a7b9` | 24 h |
-| `FLASHBTC48-001` | `0xb630608784616003f974941232dd618003e5a182176cc14010db95cda2ab1ee8` | 48 h |
-| `FLASHETH1H-001` | `0x6cedbccfc3dc131aec7bdd9a9761ac0a8e665daa87763328ffca700f9b678915` | 1 h |
-| `FLASHETH24-001` | `0xcc03aef924fc23ad01e6391af37bcfdb9ad40cce7c76218e51be62c38167f240` | 24 h |
-| `FLASHETH48-001` | `0x89a37df7cf246013d58a6b121e57b1e6417cea854b354183025ed0b41663712d` | 48 h |
-| `MICRODEPEG-001` | `0x317c1a64236e5c2d71cc0144e2e1ec3c5372f3098bf060dee1fe9cadb8943640` | 7 d |
-| `RATESHOCK-001` | `0x8ae1e4140e1713abfdbbba9bc4cbf4afdc0d60e3f98687bd02d6dad5a60a347f` | 7 d |
+Full reference + failure modes: <https://docs.lumina-org.com/agents/products-and-assets>.
 
 ⚠️ The 20-byte addresses you may see in old docs were a documentation bug — `productId` is **always** 32 bytes (a hash), not an address.
 
@@ -134,19 +138,17 @@ console.log('policyId:', result.policy?.id)
 ### Lumina SDK (smallest possible call)
 
 ```typescript
-import { LuminaClient } from 'lumina-sdk'
-import { keccak256, toUtf8Bytes } from 'ethers'
+import { LuminaClient } from '@lumina-org/sdk'   // v0.3.0+
 
 const lumina = new LuminaClient({ apiKey: process.env.LUMINA_API_KEY! })
 
 const policy = await lumina.policies.purchase({
-  productId: keccak256(toUtf8Bytes('FLASHBTC24-001')),
+  productName: 'FLASHBTC24-001',  // SDK resolves productId hash + asset='BTC'
   buyer: '0xYourWalletAddress',
   coverageAmount: '50000000',
-  asset: 'USDC',  // SDK encodes to bytes32 for you
 })
 
-console.log('policyId:', policy.id)
+console.log('policyId:', policy.policyId)
 ```
 
 ### viem variant of the asset bytes32
@@ -186,21 +188,25 @@ data = res.json()
 
 ```json
 {
-  "productId": "string — bytes32 hex (regex /^0x[0-9a-fA-F]{64}$/), keccak256 of the canonical product name",
+  "productName": "string — canonical name (e.g. \"FLASHBTC24-001\"). Optional alias for productId; the API derives the bytes32 hash and the asset literal from it.",
+  "productId": "string — bytes32 hex (regex /^0x[0-9a-fA-F]{64}$/), keccak256 of the canonical product name. Required when productName is omitted.",
   "coverageAmount": "string — positive integer in USDC base units (6 decimals → multiply USD by 1_000_000). String to avoid JS number overflow.",
-  "asset": "string — bytes32 hex; for USDC use encodeBytes32String(\"USDC\") = 0x5553444300000000000000000000000000000000000000000000000000000000",
+  "asset": "string — bytes32 hex. OPTIONAL since 2026-05-06: if omitted, the API auto-resolves the per-shield literal from the registry (BTC/ETH/USDT/USDC). Override only when intentional.",
   "buyer": "string — 0x-prefixed 20-byte address; the wallet that holds USDC and consents to pay the premium."
 }
 ```
 
-Optional header: `Idempotency-Key: <uuidv4>` — strongly recommended. Replays return the same response without double-spending.
+At least one of `productName` or `productId` must be supplied. Optional
+header: `Idempotency-Key: <uuidv4>` — strongly recommended. Replays return
+the same response without double-spending.
 
 ### Field deep-dive
 
+- `productName` is the **preferred input**. The API derives the keccak256 productId AND the per-shield asset literal from it; you cannot accidentally pair `FLASHBTC1H-001` with `USDC`.
+- `productId` is the **bytes32 keccak256 of the canonical product name** — see the table above. Required only when `productName` is absent.
 - `coverageAmount` is in **USDC base units** (USDC has 6 decimals). For $50 send `"50000000"`. For $5,000 send `"5000000000"`. Always pass as a string to preserve precision in JSON.
-- `asset` is a **bytes32 hex string**, not an address. For USDC it's `ethers.encodeBytes32String("USDC")` (or with viem `padHex(toHex('USDC'), { size: 32, dir: 'right' })`). Both produce `0x5553444300000000000000000000000000000000000000000000000000000000`.
+- `asset` is **optional**. When omitted the API resolves it from the registry (FlashBTC* → `BTC`, FlashETH* → `ETH`, MicroDepeg → `USDT`, RateShock → `USDC`). To override, pass a bytes32 hex; sending the wrong literal reverts with `InvalidAsset(bytes32)`.
 - `buyer` is the **wallet that consents to pay the premium**. The relayer pays gas; this wallet provides the USDC.
-- `productId` is the **bytes32 keccak256 of the canonical product name** — see the table above.
 
 ## Response schema (201)
 
