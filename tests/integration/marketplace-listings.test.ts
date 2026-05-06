@@ -231,13 +231,17 @@ describe("GET /api/v1/marketplace/listings", () => {
     expect(res.body.listings[0].listingId).toBe("active1");
   });
 
-  test("test_AuthRequired_NoApiKey", async () => {
+  test("test_PublicAccess_NoApiKeyOk", async () => {
+    // Marketplace browse is a read-only view of public on-chain state, so
+    // the GET is mounted on `marketplacePublicRouter` and bypasses
+    // x-api-key. publicIpLimiter still gates per-IP abuse.
     seedListing({ listingId: "1", totalPriceUsdc: "100000000" });
 
     const res = await request(app).get("/api/v1/marketplace/listings");
 
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe("missing_api_key");
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(1);
+    expect(res.body.listings[0].listingId).toBe("1");
   });
 
   test("test_InvalidSortBy_ReturnsValidationError", async () => {

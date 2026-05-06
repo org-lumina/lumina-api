@@ -205,8 +205,14 @@ describe("GET /api/v1/marketplace/history", () => {
     expect(res.body.error).toBe("validation_error");
   });
 
-  test("requires authentication", async () => {
+  test("is public — responds 200 without x-api-key", async () => {
+    // GET /history surfaces completed Bought trades. The trade index is
+    // already public on-chain, so we skip x-api-key here to keep the
+    // discovery flow zero-friction for off-chain agents.
     const res = await request(app).get("/api/v1/marketplace/history");
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.trades)).toBe(true);
+    expect(res.body.limit).toBe(50);
+    expect(res.body.offset).toBe(0);
   });
 });

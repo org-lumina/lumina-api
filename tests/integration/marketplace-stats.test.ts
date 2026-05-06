@@ -216,9 +216,20 @@ describe("GET /api/v1/marketplace/stats", () => {
     expect(third.body.floor).toBe("5");
   });
 
-  test("requires authentication", async () => {
+  test("is public — responds 200 without x-api-key", async () => {
+    // Marketplace GETs are read-only views of on-chain-public data
+    // (listings, completed trades, floor) and intentionally require no
+    // auth, mirroring /products. The IP limiter (publicIpLimiter) still
+    // gates abuse at the IP boundary.
     const res = await request(app).get("/api/v1/marketplace/stats");
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe("missing_api_key");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        floor: expect.any(String),
+        volume24h: expect.any(String),
+        totalListings: expect.any(Number),
+        totalVolume: expect.any(String),
+      })
+    );
   });
 });

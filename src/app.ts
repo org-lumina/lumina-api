@@ -7,7 +7,7 @@ import { productsRouter } from "./routes/products";
 import { policiesPublicRouter, policiesAuthRouter } from "./routes/policies";
 import { redeemAuthRouter } from "./routes/redeem";
 import { bondsAuthRouter } from "./routes/bonds";
-import { marketplaceAuthRouter } from "./routes/marketplace";
+import { marketplaceAuthRouter, marketplacePublicRouter } from "./routes/marketplace";
 import { keysRouter } from "./routes/keys";
 import { oracleAuthRouter } from "./routes/oracle";
 import { agentRouter } from "./routes/agent";
@@ -73,6 +73,11 @@ export function createApp(): Application {
   // keep working while new integrations adopt the unified namespace.
   app.use("/api/v1/products", publicIpLimiter, productsRouter);
   app.use("/api/v1/policies", publicIpLimiter, policiesPublicRouter);
+  // Marketplace GETs are read-only views of on-chain-public state
+  // (listings, completed trades, floor). Mount the public router BEFORE
+  // the auth-gated POST router so Express picks the no-auth handler for
+  // GET /api/v1/marketplace/{stats,history,listings,listings/:id}.
+  app.use("/api/v1/marketplace", publicIpLimiter, marketplacePublicRouter);
 
   const deprecateAlias = (newPath: string) => (
     req: express.Request,
