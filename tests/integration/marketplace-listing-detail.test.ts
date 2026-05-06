@@ -160,9 +160,13 @@ describe("GET /api/v1/marketplace/listings/:listingId", () => {
     expect(res.body.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
-  test("requires authentication", async () => {
+  test("is public — responds 200 without x-api-key", async () => {
+    // Single-listing detail mirrors what's already emitted as a Listed
+    // event on-chain, so we don't hide it behind auth. The publicIpLimiter
+    // mounted in app.ts caps abuse at the IP boundary.
     seedListing({ listingId: "42" });
     const res = await request(app).get("/api/v1/marketplace/listings/42");
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    expect(res.body.listingId).toBe("42");
   });
 });

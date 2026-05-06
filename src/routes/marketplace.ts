@@ -19,6 +19,17 @@ import {
   recordPurchaseAndFinalizeListing,
 } from "../db/database";
 
+// Two routers, mirroring the policies pattern:
+//   - marketplacePublicRouter: GETs (read-only, on-chain-public data)
+//   - marketplaceAuthRouter:   POSTs (mutating, x-api-key required)
+//
+// All four GET endpoints below surface data that is already public on-chain
+// (listings, completed trades, marketplace floor) — the on-chain index is
+// derivable by anyone via eth_getLogs, so requiring x-api-key here only
+// blocked low-friction agent UX without adding any privacy guarantee.
+// app.ts mounts the public router behind `publicIpLimiter` (60 req/min/IP)
+// and the auth router behind `authIpLimiter` + per-route `authMiddleware`.
+export const marketplacePublicRouter = Router();
 export const marketplaceAuthRouter = Router();
 
 const TxHashSchema = z.string().regex(/^0x[0-9a-fA-F]{64}$/, "txHash must be 0x-prefixed 32-byte hex");
@@ -44,9 +55,8 @@ const ListListingsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
-marketplaceAuthRouter.get("/listings", authMiddleware, apiLimiter, (req, res, next) => {
+marketplacePublicRouter.get("/listings", (req, res, next) => {
   try {
-    if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
     const q = ListListingsQuerySchema.parse(req.query);
     const { rows, total } = listActiveListings({
       minDiscountBps: q.minDiscountBps,
@@ -83,9 +93,8 @@ marketplaceAuthRouter.get("/listings", authMiddleware, apiLimiter, (req, res, ne
 // Cheap, cacheable summary used by dashboards and "is this market alive?"
 // agent checks. Cached 30s in `services/marketplace.getMarketplaceStats`.
 
-marketplaceAuthRouter.get("/stats", authMiddleware, apiLimiter, async (req, res, next) => {
+marketplacePublicRouter.get("/stats", async (_req, res, next) => {
   try {
-    if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
     const stats = await getMarketplaceStats();
     res.json(stats);
   } catch (e) {
@@ -108,9 +117,8 @@ const HistoryQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
-marketplaceAuthRouter.get("/history", authMiddleware, apiLimiter, async (req, res, next) => {
+marketplacePublicRouter.get("/history", async (req, res, next) => {
   try {
-    if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
     const q = HistoryQuerySchema.parse(req.query);
     const trades = await getMarketplaceHistory(q.limit, q.offset);
     res.json({
@@ -132,39 +140,33 @@ marketplaceAuthRouter.get("/history", authMiddleware, apiLimiter, async (req, re
 // positive integer string before hitting the DB so we return a clean 400
 // for clients that pass slugs / negative numbers / floats.
 
-marketplaceAuthRouter.get(
-  "/listings/:listingId",
-  authMiddleware,
-  apiLimiter,
-  (req, res, next) => {
-    try {
-      if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
-      const raw = String(req.params.listingId ?? "");
-      // Mirror the body-side UintStringSchema rule: positive integer,
-      // no leading sign, no decimal. Reject "0" too — listingId is 1-based.
-      if (!/^\d+$/.test(raw) || raw === "0") {
-        throw new HttpError(400, "listingId must be a positive integer string", "invalid_listing_id");
-      }
-      const row = getListingByListingId(raw);
-      if (!row) {
-        throw new HttpError(404, `Listing ${raw} not found`, "not_found");
-      }
-      res.json({
-        listingId: row.listing_id,
-        seller: row.seller_address,
-        bondId: row.bond_id,
-        amount: row.amount,
-        totalPriceUsdc: row.total_price_usdc,
-        txHash: row.tx_hash,
-        blockNumber: row.block_number,
-        status: row.status,
-        createdAt: new Date(row.created_at).toISOString(),
-      });
-    } catch (e) {
-      next(e);
+marketplacePublicRouter.get("/listings/:listingId", (req, res, next) => {
+  try {
+    const raw = String(req.params.listingId ?? "");
+    // Mirror the body-side UintStringSchema rule: positive integer,
+    // no leading sign, no decimal. Reject "0" too — listingId is 1-based.
+    if (!/^\d+$/.test(raw) || raw === "0") {
+      throw new HttpError(400, "listingId must be a positive integer string", "invalid_listing_id");
     }
+    const row = getListingByListingId(raw);
+    if (!row) {
+      throw new HttpError(404, `Listing ${raw} not found`, "not_found");
+    }
+    res.json({
+      listingId: row.listing_id,
+      seller: row.seller_address,
+      bondId: row.bond_id,
+      amount: row.amount,
+      totalPriceUsdc: row.total_price_usdc,
+      txHash: row.tx_hash,
+      blockNumber: row.block_number,
+      status: row.status,
+      createdAt: new Date(row.created_at).toISOString(),
+    });
+  } catch (e) {
+    next(e);
   }
-);
+});
 
 // ────────────────────────────────────────────────────────────────────────────
 // POST /list — A.1.5
