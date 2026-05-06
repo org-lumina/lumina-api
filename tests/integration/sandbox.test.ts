@@ -83,7 +83,9 @@ describe("GET /sandbox/info", () => {
     expect(res.status).toBe(200);
     expect(res.body.enabled).toBe(true);
     expect(res.body.sandboxWallet).toBe(SANDBOX_WALLET);
-    expect(res.body.coverageCapUsdc).toBe("1000000");
+    // [10x10 fix C-1] default cap is now $100 (the on-chain `InvalidCoverage`
+    // floor enforced by CoverRouterV2). Lower values revert.
+    expect(res.body.coverageCapUsdc).toBe("100000000");
   });
 });
 
@@ -107,7 +109,7 @@ describe("POST /sandbox/try", () => {
       policyId: "42",
       buyer: SANDBOX_WALLET,
       productId: "0x" + "1".repeat(64),
-      coverageAmount: "1000000",
+      coverageAmount: "100000000",
       premiumPaid: "10000",
     });
 
@@ -123,7 +125,7 @@ describe("POST /sandbox/try", () => {
     expect(purchaseSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         buyer: SANDBOX_WALLET,
-        coverageAmount: 1000000n,
+        coverageAmount: 100_000_000n,
       })
     );
   });

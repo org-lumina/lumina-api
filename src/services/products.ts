@@ -1,8 +1,13 @@
 import { coverRouter, policyManager } from "../utils/ethers";
+import { getCanonicalName, getProductName } from "../utils/productNames";
 
 export interface ProductDto {
-  productId: string; // bytes32 hex
-  shield: string;    // address
+  productId: string;          // bytes32 hex
+  /** [10x10 fix M-6] Canonical keccak256 preimage (e.g. "FLASHBTC1H-001"). */
+  name: string | null;
+  /** Human-friendly display label (e.g. "Flash BTC 1h"). */
+  displayName: string;
+  shield: string;             // address
   payoutRatioBps: number;
   triggerProbBps: number;
   marginBps: number;
@@ -21,6 +26,8 @@ export async function listProducts(): Promise<ProductDto[]> {
     const shield: string = await policyManager.productShield(productId);
     out.push({
       productId,
+      name: getCanonicalName(productId) ?? null,
+      displayName: getProductName(productId),
       shield,
       payoutRatioBps: Number(cfg[1]),
       triggerProbBps: Number(cfg[2]),
@@ -43,6 +50,8 @@ export async function getProduct(productId: string): Promise<ProductDto | undefi
   const shield: string = await policyManager.productShield(productId);
   return {
     productId,
+    name: getCanonicalName(productId) ?? null,
+    displayName: getProductName(productId),
     shield,
     payoutRatioBps: Number(cfg[1]),
     triggerProbBps: Number(cfg[2]),

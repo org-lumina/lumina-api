@@ -23,10 +23,36 @@ jest.mock("../../src/utils/ethers", () => {
     getNetwork: jest.fn().mockResolvedValue({ chainId: 84532n }),
   };
   const fakeRouter = {
+    target: "0x000000000000000000000000000000000000ABCD",
     authorizedRelayers: jest.fn().mockResolvedValue(true),
     paused: jest.fn().mockResolvedValue(false),
     globalPauseRegistry: jest.fn().mockResolvedValue("0x0000000000000000000000000000000000000000"),
     purchasePolicyFor: purchaseSpy,
+    // [10x10 fix C-1] new preflight calls
+    products: jest.fn().mockResolvedValue({
+      productId: VALID_BYTES32,
+      payoutRatioBps: 8000n,
+      triggerProbBps: 1000n,
+      marginBps: 12000n,
+      durationSeconds: 3600n,
+      active: true,
+      0: VALID_BYTES32,
+      1: 8000n,
+      2: 1000n,
+      3: 12000n,
+      4: 3600n,
+      5: true,
+    }),
+    quotePremium: jest.fn().mockResolvedValue({
+      premium: 1_000_000n,
+      payout: 800_000_000n,
+      0: 1_000_000n,
+      1: 800_000_000n,
+    }),
+  };
+  const fakeUsdc = {
+    balanceOf: jest.fn().mockResolvedValue(10_000_000_000n), // 10k USDC
+    allowance: jest.fn().mockResolvedValue(115792089237316195423570985008687907853269984665640564039457584007913129639935n),
   };
   const fakePolicyManager = {
     productActive: jest.fn().mockResolvedValue(true),
@@ -54,7 +80,7 @@ jest.mock("../../src/utils/ethers", () => {
     claimBond: {},
     bondVault: {},
     luminaToken: {},
-    usdc: {},
+    usdc: fakeUsdc,
     getGlobalPauseRegistry: jest.fn().mockImplementation(async () => {
       const addr: string = await fakeRouter.globalPauseRegistry();
       if (!addr || addr === "0x0000000000000000000000000000000000000000") return undefined;
