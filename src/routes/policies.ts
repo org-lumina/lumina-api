@@ -6,6 +6,7 @@ import { apiLimiter } from "../middlewares/rateLimit";
 import { HttpError } from "../middlewares/error";
 import { getPolicy, purchaseViaRelayer } from "../services/policies";
 import { findIdempotency, listPoliciesByOwner, recordPolicy, saveIdempotency } from "../db/database";
+import { emit as emitWebhook } from "../services/webhooks";
 
 export const policiesPublicRouter = Router();
 export const policiesAuthRouter = Router();
@@ -77,6 +78,18 @@ policiesAuthRouter.post("/", authMiddleware, apiLimiter, async (req, res, next) 
     if (idempotencyKey) {
       saveIdempotency(idempotencyKey, req.agent.id, JSON.stringify(responseBody));
     }
+    // Fan out to webhook subscribers for the buyer wallet. Emit is fire-and-
+    // forget by design; failures are logged but never block the response.
+    emitWebhook("policy_purchased", receipt.buyer, {
+      event: "policy_purchased",
+      productId: receipt.productId,
+      policyId: receipt.policyId,
+      buyer: receipt.buyer,
+      coverageAmount: receipt.coverageAmount,
+      premiumPaid: receipt.premiumPaid,
+      txHash: receipt.txHash,
+      occurredAt: new Date().toISOString(),
+    });
     res.status(201).json(responseBody);
   } catch (e) {
     next(e);

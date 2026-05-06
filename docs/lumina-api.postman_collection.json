@@ -1,0 +1,242 @@
+{
+  "info": {
+    "_postman_id": "5b8e0d3a-1110-4a37-9c1c-7e8a4b2d9001",
+    "name": "Lumina API",
+    "description": "Lumina Protocol REST API — Base Sepolia (84532). Open `GET Health` first to discover the canonical contract addresses returned by `/health`. Authenticated routes use `x-api-key` (issue via POST /agent/onboard). Most write routes accept an optional `Idempotency-Key` header.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://lumina-api-production-ac85.up.railway.app", "description": "Production API base URL" },
+    { "key": "apiKey", "value": "lk_REPLACE_WITH_YOUR_KEY", "description": "Issued via POST /api/v1/agent/onboard" },
+    { "key": "wallet", "value": "0xYourWalletAddress", "description": "The buyer wallet (consents to pay USDC premium)" },
+    { "key": "productId", "value": "0xdc5bcc7d6e2e9ca89d46d4f6672db80985d5e86509243dcca44a4e87d871a7b9", "description": "FLASHBTC24-001 (24h flash crash BTC)" },
+    { "key": "usdcBytes32", "value": "0x5553444300000000000000000000000000000000000000000000000000000000", "description": "ethers.encodeBytes32String('USDC')" }
+  ],
+  "item": [
+    {
+      "name": "Discovery",
+      "item": [
+        {
+          "name": "Health (canonical addresses)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] },
+            "description": "Service status, RPC chain, relayer + balance, all contract addresses. ALWAYS call this first."
+          }
+        },
+        {
+          "name": "OpenAPI spec (machine-readable)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/openapi.json", "host": ["{{baseUrl}}"], "path": ["openapi.json"] }
+          }
+        },
+        {
+          "name": "Swagger UI (browser)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api-docs", "host": ["{{baseUrl}}"], "path": ["api-docs"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "List products",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/products", "host": ["{{baseUrl}}"], "path": ["products"] }
+          }
+        },
+        {
+          "name": "Get product by id",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "Quote a product",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}/quote?coverageAmount=50000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "{{productId}}", "quote"],
+              "query": [{ "key": "coverageAmount", "value": "50000000", "description": "$50 in 6-dec USDC" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Agent onboarding (self-service)",
+      "item": [
+        {
+          "name": "POST /api/v1/agent/onboard",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/agent/onboard", "host": ["{{baseUrl}}"], "path": ["api", "v1", "agent", "onboard"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletAddress\": \"{{wallet}}\",\n  \"signature\": \"0x_replace_with_personal_sign_of_'Lumina onboarding for ' + walletAddress + ' at ' + timestamp_\",\n  \"timestamp\": 1717000000,\n  \"label\": \"my-postman-bot\"\n}"
+            },
+            "description": "Sign the message `Lumina onboarding for {wallet} at {timestamp}` with your wallet's private key (EIP-191). Timestamp must be within ±300s of server time."
+          }
+        },
+        {
+          "name": "GET /api/v1/agent/keys",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/agent/keys", "host": ["{{baseUrl}}"], "path": ["api", "v1", "agent", "keys"] }
+          }
+        },
+        {
+          "name": "DELETE /api/v1/agent/keys/:keyId",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/agent/keys/42", "host": ["{{baseUrl}}"], "path": ["api", "v1", "agent", "keys", "42"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Policies",
+      "item": [
+        {
+          "name": "POST /api/v1/policies — buy via relayer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/policies", "host": ["{{baseUrl}}"], "path": ["api", "v1", "policies"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"coverageAmount\": \"50000000\",\n  \"asset\": \"{{usdcBytes32}}\",\n  \"buyer\": \"{{wallet}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/policies — list mine",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/policies", "host": ["{{baseUrl}}"], "path": ["api", "v1", "policies"] }
+          }
+        },
+        {
+          "name": "GET /policies/:productId/:policyId (public)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/policies/{{productId}}/1", "host": ["{{baseUrl}}"], "path": ["policies", "{{productId}}", "1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bonds",
+      "item": [
+        {
+          "name": "GET /api/v1/bonds — owner=me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/bonds", "host": ["{{baseUrl}}"], "path": ["api", "v1", "bonds"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Marketplace",
+      "item": [
+        {
+          "name": "GET /api/v1/marketplace/listings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marketplace/listings?limit=20&offset=0&sortBy=price-asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "marketplace", "listings"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "offset", "value": "0" },
+                { "key": "sortBy", "value": "price-asc" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "POST /api/v1/webhooks — subscribe",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{baseUrl}}/api/v1/webhooks", "host": ["{{baseUrl}}"], "path": ["api", "v1", "webhooks"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://my-bot.example.com/webhooks/lumina\",\n  \"events\": [\"policy_purchased\", \"policy_triggered\"]\n}"
+            },
+            "description": "Receivers verify with X-Lumina-Signature = hex(HMAC-SHA256(body, secret)). The secret is shown ONCE in the response — store it now."
+          }
+        },
+        {
+          "name": "GET /api/v1/webhooks",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/webhooks", "host": ["{{baseUrl}}"], "path": ["api", "v1", "webhooks"] }
+          }
+        },
+        {
+          "name": "DELETE /api/v1/webhooks/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "x-api-key", "value": "{{apiKey}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/webhooks/1", "host": ["{{baseUrl}}"], "path": ["api", "v1", "webhooks", "1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sandbox (no auth required)",
+      "item": [
+        {
+          "name": "GET /sandbox/info",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/sandbox/info", "host": ["{{baseUrl}}"], "path": ["sandbox", "info"] }
+          }
+        },
+        {
+          "name": "POST /sandbox/try — $1 demo policy",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/sandbox/try", "host": ["{{baseUrl}}"], "path": ["sandbox", "try"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd\"\n}"
+            },
+            "description": "FLASHBTC1H-001 default. Coverage cap, asset, and buyer are server-fixed. 10/h/IP."
+          }
+        }
+      ]
+    }
+  ]
+}

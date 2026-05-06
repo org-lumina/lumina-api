@@ -79,6 +79,8 @@ export const openapiDocument: OpenAPIDocument = {
     { name: "oracle", description: "Off-chain price oracle signer" },
     { name: "keys", description: "Admin: API key issuance & revocation" },
     { name: "agent", description: "Self-service supervisor surface for agents/wallets" },
+    { name: "webhooks", description: "Subscribe to event push (HMAC-signed POST callbacks)" },
+    { name: "sandbox", description: "Public 'Try It' surface — pre-funded wallet, $1 cap" },
   ],
   components: {
     securitySchemes: {
@@ -1189,6 +1191,229 @@ export const openapiDocument: OpenAPIDocument = {
           ...AUTH_ERROR_RESPONSES,
           "404": errorResponse("Key not found for this wallet"),
           "429": errorResponse("Rate limit exceeded"),
+        },
+      },
+    },
+    "/api/v1/webhooks": {
+      post: {
+        tags: ["webhooks"],
+        summary: "Create a webhook subscription",
+        description:
+          "Register a URL to receive POST callbacks for the calling wallet's events. The response includes a 32-byte hex secret used by the sender for HMAC-SHA256 signing — STORE IT NOW, it is not returned again. Receivers verify with `X-Lumina-Signature` header (hex of HMAC-SHA256(body, secret)).",
+        security: [{ ApiKeyAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["url"],
+                properties: {
+                  url: { type: "string", format: "uri", example: "https://my-bot.example.com/webhooks/lumina" },
+                  events: {
+                    oneOf: [
+                      { type: "string", enum: ["*"] },
+                      {
+                        type: "array",
+                        items: {
+                          type: "string",
+                          enum: [
+                            "policy_purchased",
+                            "policy_triggered",
+                            "bond_minted",
+                            "bond_redeemed",
+                            "listing_created",
+                            "listing_purchased",
+                          ],
+                        },
+                        minItems: 1,
+                      },
+                    ],
+                    default: "*",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Subscription created. The `secret` field is shown ONLY here.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    id: { type: "integer" },
+                    url: { type: "string", format: "uri" },
+                    events: { type: "array", items: { type: "string" } },
+                    secret: { type: "string", description: "32-byte hex (64 chars). Used to verify HMAC. Stored once." },
+                    warning: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          "400": errorResponse("Invalid url or events"),
+          ...AUTH_ERROR_RESPONSES,
+          "409": errorResponse("Duplicate URL for this wallet"),
+          "429": errorResponse("Rate limit exceeded"),
+        },
+      },
+      get: {
+        tags: ["webhooks"],
+        summary: "List the calling wallet's webhook subscriptions",
+        description: "Secrets are NEVER returned by this endpoint — only at creation.",
+        security: [{ ApiKeyAuth: [] }],
+        responses: {
+          "200": {
+            description: "Subscriptions list.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    wallet: { type: "string" },
+                    count: { type: "integer" },
+                    webhooks: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "integer" },
+                          url: { type: "string", format: "uri" },
+                          events: { type: "array", items: { type: "string" } },
+                          createdAt: { type: "string", format: "date-time" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          ...AUTH_ERROR_RESPONSES,
+          "429": errorResponse("Rate limit exceeded"),
+        },
+      },
+    },
+    "/api/v1/webhooks/{id}": {
+      delete: {
+        tags: ["webhooks"],
+        summary: "Deactivate a subscription",
+        description: "Owner-only (the API key's wallet must own the subscription).",
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "integer", minimum: 1 },
+          },
+        ],
+        responses: {
+          "204": { description: "Subscription deactivated." },
+          "400": errorResponse("Invalid id"),
+          ...AUTH_ERROR_RESPONSES,
+          "404": errorResponse("Subscription not found or not yours"),
+          "429": errorResponse("Rate limit exceeded"),
+        },
+      },
+    },
+    "/sandbox/info": {
+      get: {
+        tags: ["sandbox"],
+        summary: "Sandbox configuration",
+        description: "Returns whether the sandbox is enabled and the per-purchase cap. Public, IP-rate-limited at 10/h.",
+        security: [],
+        responses: {
+          "200": {
+            description: "Sandbox info.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    enabled: { type: "boolean" },
+                    sandboxWallet: { type: "string", nullable: true },
+                    coverageCapUsdc: { type: "string" },
+                    asset: {
+                      type: "object",
+                      properties: {
+                        symbol: { type: "string", example: "USDC" },
+                        bytes32: { type: "string" },
+                      },
+                    },
+                    defaultProductId: { type: "string" },
+                    defaultProductName: { type: "string" },
+                    rateLimit: {
+                      type: "object",
+                      properties: {
+                        perIp: { type: "integer" },
+                        windowSeconds: { type: "integer" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "429": errorResponse("Rate limit exceeded (10/h/IP on the sandbox surface)"),
+        },
+      },
+    },
+    "/sandbox/try": {
+      post: {
+        tags: ["sandbox"],
+        summary: "Execute a $1 demo policy purchase",
+        description:
+          "No API key required. Coverage and buyer are fixed by the server (cap = SANDBOX_COVER_USDC, buyer = SANDBOX_WALLET). Useful for first-call demos and 'Try It' widgets. IP-rate-limited at 10/h. 503 if SANDBOX_WALLET is not configured.",
+        security: [],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  productId: {
+                    type: "string",
+                    description: "bytes32 productId. Defaults to FLASHBTC1H-001 if omitted.",
+                    pattern: "^0x[0-9a-fA-F]{64}$",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Demo policy purchased.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean" },
+                    sandbox: { type: "boolean", example: true },
+                    productId: { type: "string" },
+                    policyId: { type: "string" },
+                    buyer: { type: "string" },
+                    coverageAmount: { type: "string" },
+                    premiumPaid: { type: "string" },
+                    txHash: { type: "string" },
+                    blockExplorer: { type: "string", format: "uri" },
+                  },
+                },
+              },
+            },
+          },
+          "400": errorResponse("Invalid productId"),
+          "429": errorResponse("Rate limit exceeded (10/h/IP)"),
+          "503": errorResponse("Sandbox disabled (SANDBOX_WALLET unset)"),
         },
       },
     },

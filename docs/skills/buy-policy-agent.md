@@ -10,6 +10,39 @@
 
 Agent posts an authenticated request to the Lumina API. The API's relayer signs and sends `purchasePolicyFor` on-chain — the agent does NOT pay gas, does NOT need a wallet UI, and does NOT need to approve USDC themselves. The relayer's wallet is a pre-authorized address registered via `CoverRouterV2.setRelayer`.
 
+## productId computation
+
+`productId` is the **bytes32 keccak256 hash** of a canonical product name string. Compute it client-side; do NOT hardcode unless you understand the risk that a re-deploy invalidates it.
+
+```ts
+import { keccak256, toUtf8Bytes } from 'ethers'
+const productId = keccak256(toUtf8Bytes('FLASHBTC24-001'))
+// → 0xdc5bcc7d6e2e9ca89d46d4f6672db80985d5e86509243dcca44a4e87d871a7b9
+```
+
+```python
+from eth_utils import keccak
+product_id = '0x' + keccak(text='FLASHBTC24-001').hex()
+```
+
+### Available canonical product names (Base Sepolia, V5.1)
+
+Each row is verified against `/products` and `keccak256(name)` on 2026-05-05.
+
+| Name (keccak input) | productId (bytes32) | Duration |
+|---|---|---|
+| `FLASHBTC1H-001` | `0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd` | 1 h |
+| `FLASHBTC4H-001` | `0x0c8e45caa686271a71fb299ac5faab90520dbbd629aa8d4ad18e87d61c57a03d` | 4 h |
+| `FLASHBTC24-001` | `0xdc5bcc7d6e2e9ca89d46d4f6672db80985d5e86509243dcca44a4e87d871a7b9` | 24 h |
+| `FLASHBTC48-001` | `0xb630608784616003f974941232dd618003e5a182176cc14010db95cda2ab1ee8` | 48 h |
+| `FLASHETH1H-001` | `0x6cedbccfc3dc131aec7bdd9a9761ac0a8e665daa87763328ffca700f9b678915` | 1 h |
+| `FLASHETH24-001` | `0xcc03aef924fc23ad01e6391af37bcfdb9ad40cce7c76218e51be62c38167f240` | 24 h |
+| `FLASHETH48-001` | `0x89a37df7cf246013d58a6b121e57b1e6417cea854b354183025ed0b41663712d` | 48 h |
+| `MICRODEPEG-001` | `0x317c1a64236e5c2d71cc0144e2e1ec3c5372f3098bf060dee1fe9cadb8943640` | 7 d |
+| `RATESHOCK-001` | `0x8ae1e4140e1713abfdbbba9bc4cbf4afdc0d60e3f98687bd02d6dad5a60a347f` | 7 d |
+
+⚠️ The 20-byte addresses you may see in old docs were a documentation bug — `productId` is **always** 32 bytes (a hash), not an address.
+
 ## Ready-to-use LLM prompt
 
 ```
@@ -22,19 +55,18 @@ CONTEXT:
 - API base URL: https://lumina-api-production-ac85.up.railway.app
 - Endpoint: POST /api/v1/policies (authenticated)
 - Auth header: x-api-key: lk_<64hex>  (your agent key, see generate-api-key.md)
-- The relayer pays gas. You pay only the premium in USDC (held by relayer/agent
-  per the API's funding model — see lumina-api README).
+- The relayer pays gas. You pay only the premium in USDC.
 
 PREREQUISITES:
-1. You have a valid x-api-key bound to your wallet
-2. The protocol is not auto-paused (check via /products or RPC)
-3. You know the productId (bytes32) of the shield you want
+1. You have a valid x-api-key bound to your wallet (see generate-api-key.md)
+2. The protocol is not auto-paused (check via /health)
+3. You know the productId — compute via keccak256("FLASHBTC24-001") or pick from the table in this skill
 4. The buyer wallet holds USDC and has approved the relayer-side spender
 
 INSTRUCTIONS:
 1. POST /api/v1/policies with all four required fields:
      {
-       "productId":      "0x..."  (bytes32 hex — 64 hex chars),
+       "productId":      "0x..."  (bytes32 hex — 64 hex chars; keccak256 of canonical name),
        "coverageAmount": "uint string in USDC base units (6 dec)",
        "asset":          "0x..."  (bytes32 hex — encodeBytes32String("USDC")),
        "buyer":          "0x..."  (20-byte address — wallet that consents to pay premium)
@@ -52,7 +84,7 @@ WHEN TO STOP:
 
 ## HTTP examples
 
-### curl (copy-paste ready, $50 cover on FlashBTC1h)
+### curl (copy-paste ready, $50 cover on FLASHBTC24-001)
 
 ```bash
 curl -X POST https://lumina-api-production-ac85.up.railway.app/api/v1/policies \
@@ -60,7 +92,7 @@ curl -X POST https://lumina-api-production-ac85.up.railway.app/api/v1/policies \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen)" \
   -d '{
-    "productId": "0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd",
+    "productId": "0xdc5bcc7d6e2e9ca89d46d4f6672db80985d5e86509243dcca44a4e87d871a7b9",
     "coverageAmount": "50000000",
     "asset": "0x5553444300000000000000000000000000000000000000000000000000000000",
     "buyer": "0xYourWalletAddress"
@@ -71,15 +103,14 @@ curl -X POST https://lumina-api-production-ac85.up.railway.app/api/v1/policies \
 > `asset` is `ethers.encodeBytes32String("USDC")` — the right-padded 32-byte hex of the ASCII string `USDC`.
 > `buyer` MUST be the wallet that consents to pay the premium — the relayer pays gas, the buyer's wallet provides the USDC.
 
-### TypeScript (fetch + viem)
+### TypeScript (ethers v6, recommended)
 
 ```typescript
-import { padHex, toHex } from 'viem'
+import { encodeBytes32String, keccak256, toUtf8Bytes } from 'ethers'
 import { randomUUID } from 'crypto'
 
-// asset: bytes32 of "USDC" — encodeBytes32String equivalent
-const USDC_BYTES32 = padHex(toHex('USDC'), { size: 32, dir: 'right' })
-// → 0x5553444300000000000000000000000000000000000000000000000000000000
+const productId = keccak256(toUtf8Bytes('FLASHBTC24-001'))
+const USDC_BYTES32 = encodeBytes32String('USDC')
 
 const res = await fetch('https://lumina-api-production-ac85.up.railway.app/api/v1/policies', {
   method: 'POST',
@@ -89,21 +120,40 @@ const res = await fetch('https://lumina-api-production-ac85.up.railway.app/api/v
     'Idempotency-Key': randomUUID(),
   },
   body: JSON.stringify({
-    productId: '0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd', // FlashBTC1h
-    coverageAmount: '50000000',  // $50 in USDC base units (×10^6); string to avoid JS number overflow
-    asset: USDC_BYTES32,         // bytes32 of "USDC"
-    buyer: '0xYourWalletAddress', // wallet that consents to pay the premium
+    productId,
+    coverageAmount: '50000000',  // $50 in USDC base units
+    asset: USDC_BYTES32,
+    buyer: '0xYourWalletAddress',
   }),
 })
 
 const result = await res.json()
+console.log('policyId:', result.policy?.id)
 ```
 
-If you use ethers v6, the `asset` value is simply:
+### Lumina SDK (smallest possible call)
 
 ```typescript
-import { encodeBytes32String } from 'ethers'
-const USDC_BYTES32 = encodeBytes32String('USDC')
+import { LuminaClient } from 'lumina-sdk'
+import { keccak256, toUtf8Bytes } from 'ethers'
+
+const lumina = new LuminaClient({ apiKey: process.env.LUMINA_API_KEY! })
+
+const policy = await lumina.policies.purchase({
+  productId: keccak256(toUtf8Bytes('FLASHBTC24-001')),
+  buyer: '0xYourWalletAddress',
+  coverageAmount: '50000000',
+  asset: 'USDC',  // SDK encodes to bytes32 for you
+})
+
+console.log('policyId:', policy.id)
+```
+
+### viem variant of the asset bytes32
+
+```typescript
+import { padHex, toHex } from 'viem'
+const USDC_BYTES32 = padHex(toHex('USDC'), { size: 32, dir: 'right' })
 // → 0x5553444300000000000000000000000000000000000000000000000000000000
 ```
 
@@ -111,10 +161,10 @@ const USDC_BYTES32 = encodeBytes32String('USDC')
 
 ```python
 import os, uuid, requests
-from eth_abi.packed import encode_packed  # or use a static constant
+from eth_utils import keccak
 
-# asset: bytes32 of "USDC" (right-padded). Static value works just as well:
 USDC_BYTES32 = '0x5553444300000000000000000000000000000000000000000000000000000000'
+product_id = '0x' + keccak(text='FLASHBTC24-001').hex()
 
 res = requests.post(
     'https://lumina-api-production-ac85.up.railway.app/api/v1/policies',
@@ -123,10 +173,10 @@ res = requests.post(
         'Idempotency-Key': str(uuid.uuid4()),
     },
     json={
-        'productId': '0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd',
-        'coverageAmount': '50000000',          # $50 in USDC base units (str preserves precision)
-        'asset': USDC_BYTES32,                 # bytes32 of "USDC"
-        'buyer': '0xYourWalletAddress',        # wallet paying the premium
+        'productId': product_id,
+        'coverageAmount': '50000000',
+        'asset': USDC_BYTES32,
+        'buyer': '0xYourWalletAddress',
     },
 )
 data = res.json()
@@ -136,37 +186,51 @@ data = res.json()
 
 ```json
 {
-  "productId": "string — bytes32 hex (regex /^0x[0-9a-fA-F]{64}$/), keccak256 of the canonical product name (e.g., FlashBTC1h)",
-  "coverageAmount": "string — positive integer in USDC base units (6 decimals → multiply USD by 1_000_000). Use string to avoid JS number overflow.",
+  "productId": "string — bytes32 hex (regex /^0x[0-9a-fA-F]{64}$/), keccak256 of the canonical product name",
+  "coverageAmount": "string — positive integer in USDC base units (6 decimals → multiply USD by 1_000_000). String to avoid JS number overflow.",
   "asset": "string — bytes32 hex; for USDC use encodeBytes32String(\"USDC\") = 0x5553444300000000000000000000000000000000000000000000000000000000",
-  "buyer": "string — 0x-prefixed 20-byte address; the wallet that holds USDC and consents to pay the premium. The relayer pays gas; this wallet provides the USDC."
+  "buyer": "string — 0x-prefixed 20-byte address; the wallet that holds USDC and consents to pay the premium."
 }
 ```
 
-Optional header: `Idempotency-Key: <uuidv4>` — strongly recommended. The same key replays the same response without double-spending.
+Optional header: `Idempotency-Key: <uuidv4>` — strongly recommended. Replays return the same response without double-spending.
 
 ### Field deep-dive
 
-- `coverageAmount` is in **USDC base units** (USDC has 6 decimals). For $50 coverage send `"50000000"`. For $5,000 send `"5000000000"`. Always pass as a string to preserve precision in JSON.
-- `asset` is a **bytes32 hex string**, not an address. For USDC it's `ethers.encodeBytes32String("USDC")` (or with viem: `padHex(toHex('USDC'), { size: 32, dir: 'right' })`). Both produce `0x5553444300000000000000000000000000000000000000000000000000000000`.
-- `buyer` is the **wallet that consents to pay the premium**. The relayer pays the gas for the on-chain `purchasePolicyFor` call, but the USDC for the premium comes out of the `buyer` wallet's balance/allowance. Ensure that wallet holds enough USDC and has approved the appropriate spender.
-- `productId` is the **bytes32 keccak hash of the canonical product name** — 64 hex chars after `0x`. The 20-byte addresses you might see in older docs were a documentation bug; productIds are 32 bytes.
+- `coverageAmount` is in **USDC base units** (USDC has 6 decimals). For $50 send `"50000000"`. For $5,000 send `"5000000000"`. Always pass as a string to preserve precision in JSON.
+- `asset` is a **bytes32 hex string**, not an address. For USDC it's `ethers.encodeBytes32String("USDC")` (or with viem `padHex(toHex('USDC'), { size: 32, dir: 'right' })`). Both produce `0x5553444300000000000000000000000000000000000000000000000000000000`.
+- `buyer` is the **wallet that consents to pay the premium**. The relayer pays gas; this wallet provides the USDC.
+- `productId` is the **bytes32 keccak256 of the canonical product name** — see the table above.
 
 ## Response schema (201)
 
-Shape returned by the route handler. Includes the on-chain `policyId` and the relayer tx hash for verification.
+Includes the on-chain `policyId` and the relayer tx hash for verification. Shape:
+
+```json
+{
+  "ok": true,
+  "policy": {
+    "id": "<onchain policyId>",
+    "productId": "0x…",
+    "buyer": "0x…",
+    "coverageAmount": "50000000",
+    "premiumPaid": "<USDC base units>",
+    "txHash": "0x…"
+  }
+}
+```
 
 ## Error codes
 
 | HTTP | Code | Why | Retry? |
 |---|---|---|---|
-| 400 | validation_error | productId/cover wrong | No |
-| 401 | missing_api_key | header absent | No |
-| 401 | invalid_api_key | revoked/malformed | No |
-| 422 | shield_paused | shield.paused or protocol auto-paused | Maybe later |
-| 422 | exceeds_capacity | BondVault.availableCapacityUSD insufficient | Maybe later |
-| 429 | rate_limit | tier cap hit | Yes, backoff |
-| 500 | server_error | RPC down / gas spike | Yes, max 3 |
+| 400 | `validation_error` | productId / cover / asset / buyer wrong shape | No |
+| 401 | `missing_api_key` | header absent | No |
+| 401 | `invalid_api_key` | revoked / malformed | No |
+| 422 | `shield_paused` | shield.paused or protocol auto-paused | Maybe later |
+| 422 | `exceeds_capacity` | BondVault.availableCapacityUSD insufficient | Maybe later |
+| 429 | `rate_limit` | tier cap hit | Yes, backoff |
+| 500 | `server_error` | RPC down / gas spike | Yes, max 3 |
 
 ## Rate limits
 
@@ -189,7 +253,7 @@ The on-chain effect is identical; only `tx.origin` differs.
 
 ## Source
 
-- API endpoint: `src/routes/policies.ts:45` — `policiesAuthRouter.post("/", authMiddleware, apiLimiter, …)`
-- Mount: `src/app.ts:29` — `app.use("/api/v1/policies", authIpLimiter, policiesAuthRouter)`
+- API endpoint: `src/routes/policies.ts` — `policiesAuthRouter.post("/", authMiddleware, apiLimiter, …)`
+- Mount: `src/app.ts` — `app.use("/api/v1/policies", authIpLimiter, policiesAuthRouter)`
 - Auth: `src/middlewares/auth.ts` — `authMiddleware` (validates `lk_…` keys)
-- Underlying contract: `LUMINA-PROTOCOL/src/core/CoverRouterV2.sol:158` — `purchasePolicyFor` (relayer-only)
+- Underlying contract: `LUMINA-PROTOCOL/src/core/CoverRouterV2.sol` — `purchasePolicyFor` (relayer-only)

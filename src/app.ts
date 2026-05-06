@@ -11,6 +11,8 @@ import { marketplaceAuthRouter } from "./routes/marketplace";
 import { keysRouter } from "./routes/keys";
 import { oracleAuthRouter } from "./routes/oracle";
 import { agentRouter } from "./routes/agent";
+import { webhooksAuthRouter } from "./routes/webhooks";
+import { sandboxRouter } from "./routes/sandbox";
 import { openapiDocument } from "./openapi";
 import { errorHandler, notFoundHandler } from "./middlewares/error";
 import { authIpLimiter, publicIpLimiter } from "./middlewares/rateLimit";
@@ -85,6 +87,15 @@ export function createApp(): Application {
   // the wallet). GET/DELETE /keys are authenticated via x-api-key behind
   // the same IP-rate-limit gate as the other authenticated routes.
   app.use("/api/v1/agent", authIpLimiter, agentRouter);
+
+  // Webhook subscriptions (CRUD). Auth + per-agent rate-limited.
+  app.use("/api/v1/webhooks", authIpLimiter, webhooksAuthRouter);
+
+  // Sandbox / "Try It" surface. Public, IP-rate-limited far more
+  // aggressively than the regular public routes — the sandbox spends real
+  // (testnet) USDC out of a pre-funded wallet, so abuse is metered at the
+  // IP boundary.
+  app.use("/sandbox", sandboxRouter);
 
   // OpenAPI spec + Swagger UI — both unauthenticated, gated by the public
   // IP limiter. The spec is the source of truth for external agents that
