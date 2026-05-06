@@ -2,11 +2,14 @@ import { createApp } from "./app";
 import { loadConfig } from "./utils/config";
 import { logger } from "./utils/logger";
 import { getDb, closeDb } from "./db/database";
+import { startWebhookWorker, stopWebhookWorker } from "./services/webhooks";
 
 const cfg = loadConfig();
 
 const app = createApp();
 getDb(); // run migrations on boot
+// Started AFTER migrations so the queue tables are guaranteed to exist.
+startWebhookWorker();
 
 const server = app.listen(cfg.PORT, () => {
   logger.info({ port: cfg.PORT, chainId: cfg.CHAIN_ID, env: cfg.NODE_ENV }, "Lumina API listening");
@@ -14,6 +17,7 @@ const server = app.listen(cfg.PORT, () => {
 
 function shutdown(signal: string): void {
   logger.info({ signal }, "shutting down");
+  stopWebhookWorker();
   server.close((err) => {
     if (err) logger.error({ err }, "error closing http server");
     closeDb();

@@ -147,8 +147,182 @@ function migrate(d: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_purchases_buyer ON purchases(buyer_address);
     CREATE INDEX IF NOT EXISTS idx_purchases_seller ON purchases(seller_address);
     CREATE INDEX IF NOT EXISTS idx_purchases_listing ON purchases(listing_id);
+
+    -- Webhook subscriptions: each row binds a wallet to a delivery URL +
+    -- HMAC secret + event filter. UNIQUE(wallet, url) prevents the same
+    -- wallet from registering the same URL twice; multiple distinct URLs
+    -- per wallet are allowed (e.g. dev / staging / prod endpoints).
+    CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      wallet TEXT NOT NULL,
+      url TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      events TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+      UNIQUE(wallet, url)
+    );
+    CREATE INDEX IF NOT EXISTS idx_webhook_sub_wallet ON webhook_subscriptions(wallet) WHERE active = 1;
+
+    CREATE TABLE IF NOT EXISTS webhook_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event TEXT NOT NULL,
+      wallet TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+      processed_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_webhook_events_pending ON webhook_events(id) WHERE processed_at IS NULL;
+
+    CREATE TABLE IF NOT EXISTS webhook_deliveries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      subscription_id INTEGER NOT NULL,
+      url TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending',
+      response_code INTEGER,
+      response_body TEXT,
+      next_attempt_at INTEGER NOT NULL,
+      delivered_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+      FOREIGN KEY (event_id) REFERENCES webhook_events(id) ON DELETE CASCADE,
+      FOREIGN KEY (subscription_id) REFERENCES webhook_subscriptions(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_webhook_del_pending ON webhook_deliveries(next_attempt_at) WHERE status = 'pending';
   `);
   logger.debug("DB migrated");
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Webhook helpers
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface WebhookSubscriptionRow {
+  id: number;
+  wallet: string;
+  url: string;
+  secret: string;
+  events: string; // JSON-encoded string[] or '*'
+  active: number;
+  created_at: number;
+}
+
+export interface WebhookEventRow {
+  id: number;
+  event: string;
+  wallet: string;
+  payload_json: string;
+  created_at: number;
+  processed_at: number | null;
+}
+
+export interface WebhookDeliveryRow {
+  id: number;
+  event_id: number;
+  subscription_id: number;
+  url: string;
+  attempts: number;
+  status: "pending" | "delivered" | "failed";
+  response_code: number | null;
+  response_body: string | null;
+  next_attempt_at: number;
+  delivered_at: number | null;
+  created_at: number;
+}
+
+export function insertWebhookSubscription(input: {
+  wallet: string;
+  url: string;
+  secret: string;
+  events: string[];
+}): WebhookSubscriptionRow {
+  const d = getDb();
+  return d
+    .prepare(
+      `INSERT INTO webhook_subscriptions (wallet, url, secret, events) VALUES (?, ?, ?, ?) RETURNING *`
+    )
+    .get(
+      input.wallet.toLowerCase(),
+      input.url,
+      input.secret,
+      JSON.stringify(input.events)
+    ) as WebhookSubscriptionRow;
+}
+
+export function listWebhookSubscriptionsByWallet(wallet: string): WebhookSubscriptionRow[] {
+  const d = getDb();
+  return d
+    .prepare("SELECT * FROM webhook_subscriptions WHERE wallet = ? AND active = 1 ORDER BY id")
+    .all(wallet.toLowerCase()) as WebhookSubscriptionRow[];
+}
+
+export function deactivateWebhookSubscription(id: number, wallet: string): boolean {
+  const d = getDb();
+  const r = d
+    .prepare("UPDATE webhook_subscriptions SET active = 0 WHERE id = ? AND wallet = ? AND active = 1")
+    .run(id, wallet.toLowerCase());
+  return r.changes > 0;
+}
+
+export function emitWebhookEvent(event: string, wallet: string, payload: unknown): WebhookEventRow {
+  const d = getDb();
+  return d
+    .prepare(
+      `INSERT INTO webhook_events (event, wallet, payload_json) VALUES (?, ?, ?) RETURNING *`
+    )
+    .get(event, wallet.toLowerCase(), JSON.stringify(payload)) as WebhookEventRow;
+}
+
+export function listPendingWebhookEvents(limit = 100): WebhookEventRow[] {
+  const d = getDb();
+  return d
+    .prepare("SELECT * FROM webhook_events WHERE processed_at IS NULL ORDER BY id LIMIT ?")
+    .all(limit) as WebhookEventRow[];
+}
+
+export function markWebhookEventProcessed(id: number): void {
+  const d = getDb();
+  d.prepare("UPDATE webhook_events SET processed_at = ? WHERE id = ?").run(Date.now(), id);
+}
+
+export function insertWebhookDelivery(input: {
+  event_id: number;
+  subscription_id: number;
+  url: string;
+  next_attempt_at: number;
+}): WebhookDeliveryRow {
+  const d = getDb();
+  return d
+    .prepare(
+      `INSERT INTO webhook_deliveries (event_id, subscription_id, url, next_attempt_at) VALUES (?, ?, ?, ?) RETURNING *`
+    )
+    .get(input.event_id, input.subscription_id, input.url, input.next_attempt_at) as WebhookDeliveryRow;
+}
+
+export function listDueWebhookDeliveries(now: number, limit = 50): WebhookDeliveryRow[] {
+  const d = getDb();
+  return d
+    .prepare(
+      "SELECT * FROM webhook_deliveries WHERE status = 'pending' AND next_attempt_at <= ? ORDER BY next_attempt_at LIMIT ?"
+    )
+    .all(now, limit) as WebhookDeliveryRow[];
+}
+
+export function updateWebhookDelivery(
+  id: number,
+  patch: Partial<Pick<WebhookDeliveryRow, "status" | "attempts" | "response_code" | "response_body" | "next_attempt_at" | "delivered_at">>
+): void {
+  const d = getDb();
+  const fields: string[] = [];
+  const values: Array<string | number | null> = [];
+  for (const [k, v] of Object.entries(patch)) {
+    fields.push(`${k} = ?`);
+    values.push(v as string | number | null);
+  }
+  if (fields.length === 0) return;
+  values.push(id);
+  d.prepare(`UPDATE webhook_deliveries SET ${fields.join(", ")} WHERE id = ?`).run(...values);
 }
 
 // Agents

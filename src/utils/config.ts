@@ -39,6 +39,20 @@ const ConfigSchema = z.object({
   // isolation between cases.
   RATE_LIMIT_PUBLIC_IP_RPM: z.coerce.number().int().positive().default(120),
   RATE_LIMIT_AUTH_IP_RPM: z.coerce.number().int().positive().default(60),
+
+  // Sandbox / "Try It" widget. Optional — when SANDBOX_WALLET is unset
+  // the sandbox endpoints respond 503 sandbox_disabled. Funded externally
+  // (cron tops it up with mUSDC); the API merely consumes from it. The
+  // wallet address is the buyer-of-record on every sandbox purchase.
+  SANDBOX_WALLET: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{40}$/)
+    .optional(),
+  // Per-purchase cap for the sandbox, in USDC base units (6-dec). Default $1.
+  SANDBOX_COVER_USDC: z
+    .string()
+    .regex(/^\d+$/)
+    .default("1000000"),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
