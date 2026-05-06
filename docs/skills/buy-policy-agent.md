@@ -64,17 +64,20 @@ CONTEXT:
 PREREQUISITES:
 1. You have a valid x-api-key bound to your wallet (see generate-api-key.md)
 2. The protocol is not auto-paused (check via /health)
-3. You know the productId — compute via keccak256("FLASHBTC24-001") or pick from the table in this skill
+3. You know the productName — pick from the table in this skill (e.g. "FLASHBTC24-001")
 4. The buyer wallet holds USDC and has approved the relayer-side spender
 
 INSTRUCTIONS:
-1. POST /api/v1/policies with all four required fields:
+1. POST /api/v1/policies with productName + coverageAmount + buyer:
      {
-       "productId":      "0x..."  (bytes32 hex — 64 hex chars; keccak256 of canonical name),
+       "productName":    "FLASHBTC24-001"  (canonical name; API derives productId hash AND per-shield asset),
        "coverageAmount": "uint string in USDC base units (6 dec)",
-       "asset":          "0x..."  (bytes32 hex — encodeBytes32String("USDC")),
        "buyer":          "0x..."  (20-byte address — wallet that consents to pay premium)
      }
+   The asset literal is per-shield (BTC for FlashBTC, ETH for FlashETH,
+   USDT for MicroDepeg, USDC for RateShock). DO NOT hardcode `"asset": "USDC"`
+   for every product — that reverts 7-of-9 with InvalidAsset(bytes32("USDC")).
+   When you omit `asset`, the API resolves the correct literal from the registry.
    Optional header: Idempotency-Key: <uuidv4> (strongly recommended for retries).
 2. On 201 response, persist the returned policyId for tracking
 3. On 4xx, fix the payload and retry
@@ -96,25 +99,20 @@ curl -X POST https://lumina-api-production-ac85.up.railway.app/api/v1/policies \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen)" \
   -d '{
-    "productId": "0xdc5bcc7d6e2e9ca89d46d4f6672db80985d5e86509243dcca44a4e87d871a7b9",
+    "productName":    "FLASHBTC24-001",
     "coverageAmount": "50000000",
-    "asset": "0x5553444300000000000000000000000000000000000000000000000000000000",
-    "buyer": "0xYourWalletAddress"
+    "buyer":          "0xYourWalletAddress"
   }'
 ```
 
 > `coverageAmount: "50000000"` = $50 (USDC has 6 decimals → multiply USD by 1_000_000).
-> `asset` is `ethers.encodeBytes32String("USDC")` — the right-padded 32-byte hex of the ASCII string `USDC`.
+> `productName` is the canonical product label — the API derives the bytes32 `productId` hash AND the per-shield `asset` literal from it (FlashBTC → `BTC`, FlashETH → `ETH`, MicroDepeg → `USDT`, RateShock → `USDC`).
 > `buyer` MUST be the wallet that consents to pay the premium — the relayer pays gas, the buyer's wallet provides the USDC.
 
 ### TypeScript (ethers v6, recommended)
 
 ```typescript
-import { encodeBytes32String, keccak256, toUtf8Bytes } from 'ethers'
 import { randomUUID } from 'crypto'
-
-const productId = keccak256(toUtf8Bytes('FLASHBTC24-001'))
-const USDC_BYTES32 = encodeBytes32String('USDC')
 
 const res = await fetch('https://lumina-api-production-ac85.up.railway.app/api/v1/policies', {
   method: 'POST',
@@ -124,9 +122,8 @@ const res = await fetch('https://lumina-api-production-ac85.up.railway.app/api/v
     'Idempotency-Key': randomUUID(),
   },
   body: JSON.stringify({
-    productId,
-    coverageAmount: '50000000',  // $50 in USDC base units
-    asset: USDC_BYTES32,
+    productName: 'FLASHBTC24-001',  // API resolves productId hash + asset='BTC'
+    coverageAmount: '50000000',     // $50 in USDC base units
     buyer: '0xYourWalletAddress',
   }),
 })
@@ -163,10 +160,6 @@ const USDC_BYTES32 = padHex(toHex('USDC'), { size: 32, dir: 'right' })
 
 ```python
 import os, uuid, requests
-from eth_utils import keccak
-
-USDC_BYTES32 = '0x5553444300000000000000000000000000000000000000000000000000000000'
-product_id = '0x' + keccak(text='FLASHBTC24-001').hex()
 
 res = requests.post(
     'https://lumina-api-production-ac85.up.railway.app/api/v1/policies',
@@ -175,9 +168,9 @@ res = requests.post(
         'Idempotency-Key': str(uuid.uuid4()),
     },
     json={
-        'productId': product_id,
+        # API derives productId hash AND per-shield asset literal from productName.
+        'productName': 'FLASHBTC24-001',
         'coverageAmount': '50000000',
-        'asset': USDC_BYTES32,
         'buyer': '0xYourWalletAddress',
     },
 )
