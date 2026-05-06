@@ -13,10 +13,17 @@ jest.mock("../../src/utils/ethers", () => {
   };
   const fakeRelayer = { address: "0x0000000000000000000000000000000000000001" };
   const fakeRouter = {
+    target: "0x000000000000000000000000000000000000ABCD",
     authorizedRelayers: jest.fn().mockResolvedValue(true),
     // [V5.1 H-4 / M-7] Pre-flights — both unpaused for idempotency tests.
     paused: jest.fn().mockResolvedValue(false),
     globalPauseRegistry: jest.fn().mockResolvedValue("0x0000000000000000000000000000000000000000"),
+    // [10x10 fix C-1] new preflights
+    products: jest.fn().mockResolvedValue({
+      durationSeconds: 3600n,
+      0: "0x" + "0".repeat(64), 1: 8000n, 2: 1000n, 3: 12000n, 4: 3600n, 5: true,
+    }),
+    quotePremium: jest.fn().mockResolvedValue({ premium: 1_000_000n, payout: 800_000_000n, 0: 1_000_000n, 1: 800_000_000n }),
     purchasePolicyFor: jest.fn(async () => {
       purchaseCallCount += 1;
       return {
@@ -31,6 +38,10 @@ jest.mock("../../src/utils/ethers", () => {
   };
   // [V5.1 H-5] Pre-flight productActive used by purchaseViaRelayer.
   const fakePolicyManager = { productActive: jest.fn().mockResolvedValue(true) };
+  const fakeUsdc = {
+    balanceOf: jest.fn().mockResolvedValue(10_000_000_000n),
+    allowance: jest.fn().mockResolvedValue(115792089237316195423570985008687907853269984665640564039457584007913129639935n),
+  };
   return {
     provider: fakeProvider,
     relayer: fakeRelayer,
@@ -40,7 +51,7 @@ jest.mock("../../src/utils/ethers", () => {
     claimBond: {},
     bondVault: {},
     luminaToken: {},
-    usdc: {},
+    usdc: fakeUsdc,
     getGlobalPauseRegistry: jest.fn().mockResolvedValue(undefined),
   };
 });

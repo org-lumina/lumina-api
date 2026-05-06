@@ -8,10 +8,71 @@ import {
   policyManager,
   provider,
   relayer,
+  usdc,
 } from "../utils/ethers";
 import { getProductName } from "../utils/productNames";
 import { logger } from "../utils/logger";
 import { HttpError } from "../middlewares/error";
+
+/**
+ * On-chain CoverRouterV2 enforces `coverageAmount >= 100e6` ($100 USDC).
+ * Mirrored here so we can return a clean 400 instead of an opaque
+ * `InvalidCoverage` revert (selector 0x2340cc3a).
+ */
+export const MIN_COVERAGE_USDC = 100_000_000n; // $100 in USDC base units (6 decimals)
+
+/**
+ * Custom-error decoder for purchase reverts.
+ *
+ * Maps the 4-byte selectors raised by CoverRouterV2 / PolicyManagerV2 to
+ * human-readable messages. Pre-flights catch most of these before submission,
+ * but a stale read (e.g. product flipped inactive between preflight and tx)
+ * can still surface them — and an undecoded selector is the worst dev-UX bug
+ * found in the 10/10 verification report.
+ *
+ * Returns `undefined` when the selector is unknown so the caller falls back
+ * to the raw ethers message.
+ */
+const KNOWN_REVERT_SELECTORS: Record<string, string> = {
+  "0x2340cc3a": `InvalidCoverage — coverage amount is below the on-chain minimum (${MIN_COVERAGE_USDC} base units = $100). Send a coverageAmount of at least ${MIN_COVERAGE_USDC}.`,
+  "0x6d417ea4": "ProductNotConfigured — productId is not configured on CoverRouter. Check GET /api/v1/products for valid productIds.",
+  "0x5d042eb9": "ProductInactive — product is configured but currently disabled. Try again later or pick a different product.",
+  "0xacf52825": "NotAuthorizedRelayer — relayer wallet is not authorized on CoverRouter. Owner must call setRelayer(relayer, true).",
+  "0xab35696f": "ContractPaused — CoverRouter is paused (local circuit breaker). Try again later.",
+  // Solady / OZ ERC20 errors
+  "0xfb8f41b2": "ERC20InsufficientAllowance — buyer must approve(coverRouter, amount) first. Use the SDK helper: lumina.policies.ensureAllowance(buyer, premium).",
+  "0xe450d38c": "ERC20InsufficientBalance — buyer wallet has less USDC than the premium. Top up at the testnet faucet.",
+  "0x5274afe7": "SafeERC20FailedOperation — USDC transfer failed (insufficient allowance or balance).",
+  "0xb12d13eb": "GloballyPaused — protocol-wide kill switch is active. All purchases temporarily disabled.",
+  // PolicyManager
+  "0xb9780c7f": "ProductNotFound — productId not registered with PolicyManager.",
+  "0xaa62be1a": "ProductNotActive — product flag is currently inactive at the policy-manager level.",
+  "0x1040f089": "InsufficientCapacity — coverage exceeds remaining product capacity. Pick a smaller cover amount.",
+};
+
+export function decodeRevertMessage(err: unknown): string | undefined {
+  if (!err) return undefined;
+  const e = err as { data?: unknown; info?: { error?: { data?: unknown } }; error?: { data?: unknown } };
+  // ethers v6 wraps revert data variously across providers
+  const candidates: string[] = [];
+  for (const v of [e.data, e.info?.error?.data, e.error?.data]) {
+    if (typeof v === "string") candidates.push(v);
+    else if (v && typeof v === "object" && "data" in v && typeof (v as { data: unknown }).data === "string") {
+      candidates.push((v as { data: string }).data);
+    }
+  }
+  // also scan stringified message for "0x........" that looks like custom-error data
+  const msg = err instanceof Error ? err.message : String(err);
+  const m = msg.match(/0x[0-9a-fA-F]{8,}/);
+  if (m) candidates.push(m[0]);
+
+  for (const data of candidates) {
+    const sel = data.slice(0, 10).toLowerCase();
+    const human = KNOWN_REVERT_SELECTORS[sel];
+    if (human) return human;
+  }
+  return undefined;
+}
 
 export type PolicyStatus = "Waiting" | "Active" | "Triggered" | "Expired" | "Cancelled";
 
@@ -243,6 +304,60 @@ export async function purchaseViaRelayer(input: PurchaseInput): Promise<Purchase
     );
   }
 
+  // [10x10 fix C-1] Pre-flight: coverage minimum. CoverRouterV2._purchase
+  // reverts with `InvalidCoverage(amount)` (0x2340cc3a) when coverageAmount
+  // is below 100e6. Catching it here avoids the opaque on-chain revert that
+  // blocked every first integration in the verification report.
+  if (input.coverageAmount < MIN_COVERAGE_USDC) {
+    throw new HttpError(
+      400,
+      `coverageAmount ${input.coverageAmount} is below the on-chain minimum (${MIN_COVERAGE_USDC} = $100). Send at least ${MIN_COVERAGE_USDC}.`,
+      "coverage_below_minimum"
+    );
+  }
+
+  // [10x10 fix C-1] Pre-flight: product must be configured on CoverRouter.
+  // `products(productId).durationSeconds == 0` means unconfigured — reverts
+  // with `ProductNotConfigured(productId)` on submission. Returning 404
+  // matches the API style for "unknown resource".
+  const config = await coverRouter.products(input.productId);
+  const durationSeconds: bigint = (config.durationSeconds ?? config[4]) as bigint;
+  if (durationSeconds === undefined || BigInt(durationSeconds) === 0n) {
+    throw new HttpError(
+      404,
+      `Product ${input.productId} is not configured on CoverRouter. List available products at GET /api/v1/products.`,
+      "product_not_found"
+    );
+  }
+
+  // [10x10 fix C-1] Compute the premium (read-only) so we can preflight the
+  // buyer's USDC balance + allowance. Same formula the contract uses.
+  const quote = await coverRouter.quotePremium(input.productId, input.coverageAmount);
+  const premium: bigint = BigInt(quote.premium ?? quote[0]);
+
+  // [10x10 fix C-1] Pre-flight: buyer USDC balance >= premium.
+  const buyerBalance: bigint = await usdc.balanceOf(input.buyer);
+  if (buyerBalance < premium) {
+    throw new HttpError(
+      400,
+      `Buyer ${input.buyer} has ${buyerBalance} USDC base units; needs ${premium} for this purchase. Top up at the testnet faucet.`,
+      "insufficient_balance"
+    );
+  }
+
+  // [10x10 fix C-1] Pre-flight: buyer USDC allowance for CoverRouter >= premium.
+  // The docs explicitly promise this preflight; before this fix, an unapproved
+  // wallet got a raw `tx_submit_failed` with no hint.
+  const coverRouterAddr = (coverRouter.target ?? (coverRouter as { address?: string }).address) as string;
+  const buyerAllowance: bigint = await usdc.allowance(input.buyer, coverRouterAddr);
+  if (buyerAllowance < premium) {
+    throw new HttpError(
+      400,
+      `Buyer must approve CoverRouter to spend USDC. Required allowance: ${premium}; current: ${buyerAllowance}. Call: usdc.approve("${coverRouterAddr}", MaxUint256). Or use the SDK helper: lumina.policies.ensureAllowance(buyer, premium).`,
+      "insufficient_allowance"
+    );
+  }
+
   let tx;
   try {
     tx = await coverRouterRelayer.purchasePolicyFor(
@@ -252,8 +367,15 @@ export async function purchaseViaRelayer(input: PurchaseInput): Promise<Purchase
       input.buyer
     );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new HttpError(400, `Transaction submission failed: ${msg}`, "tx_submit_failed");
+    // [10x10 fix C-1] Decode known custom-error selectors so the caller gets a
+    // human-readable message instead of "execution reverted (unknown custom error)".
+    const decoded = decodeRevertMessage(e);
+    const raw = e instanceof Error ? e.message : String(e);
+    throw new HttpError(
+      400,
+      decoded ? `Transaction submission failed: ${decoded}` : `Transaction submission failed: ${raw}`,
+      decoded ? "tx_submit_failed_decoded" : "tx_submit_failed"
+    );
   }
 
   const receipt = await tx.wait();

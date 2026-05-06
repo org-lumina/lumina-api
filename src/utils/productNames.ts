@@ -31,10 +31,33 @@ const NAMES: ReadonlyMap<string, string> = new Map(
 );
 
 /**
+ * [10x10 fix M-6] Reverse map productId (bytes32 hex) -> the canonical
+ * keccak256 preimage (e.g. "FLASHBTC1H-001"). Agents need this to
+ * round-trip productId -> name without having to pre-compute hashes
+ * from the Shields docs.
+ */
+const CANONICAL: ReadonlyMap<string, string> = new Map(
+  PREIMAGES.map(([preimage]) => [
+    ethers.keccak256(ethers.toUtf8Bytes(preimage)).toLowerCase(),
+    preimage,
+  ])
+);
+
+/**
  * Resolve `productId` (bytes32 hex) to a display name. Returns "Unknown product"
  * for ids not in the registry (e.g. shields deployed after this map was last
  * updated). Comparison is case-insensitive.
  */
 export function getProductName(productId: string): string {
   return NAMES.get(productId.toLowerCase()) ?? "Unknown product";
+}
+
+/**
+ * Resolve `productId` (bytes32 hex) to its canonical name (the
+ * keccak256 preimage, e.g. "FLASHBTC1H-001"). Returns `undefined` for
+ * unknown products so callers can decide whether to fall back to the
+ * raw bytes32.
+ */
+export function getCanonicalName(productId: string): string | undefined {
+  return CANONICAL.get(productId.toLowerCase());
 }

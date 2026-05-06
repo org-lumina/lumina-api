@@ -113,7 +113,19 @@ agentRouter.post("/onboard", ONBOARD_RATE_LIMIT, (req, res, next) => {
 agentRouter.get("/keys", authMiddleware, apiLimiter, (req, res, next) => {
   try {
     if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
-    const keys = listKeysForWallet(req.agent.wallet);
+    // [10x10 fix M-5] Serialize snake_case DB rows into camelCase to match the
+    // SDK's `ApiKeyMetadata` interface. Pre-fix the API and SDK had silent
+    // contract drift (verification report bug 3).
+    const rows = listKeysForWallet(req.agent.wallet);
+    const keys = rows.map((r) => ({
+      keyId: r.id,
+      agentId: r.agent_id,
+      label: r.label,
+      tier: r.tier,
+      hashPrefix: r.hash_prefix,
+      createdAt: r.created_at,
+      revokedAt: r.revoked_at,
+    }));
     res.json({ wallet: req.agent.wallet, keys });
   } catch (e) {
     next(e);

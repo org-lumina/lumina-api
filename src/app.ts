@@ -66,8 +66,26 @@ export function createApp(): Application {
 
   // Public — [Audit #36 PUB-RL-1] IP-rate-limited at 120 req/min/IP.
   app.use("/health", publicIpLimiter, healthRouter);
-  app.use("/products", publicIpLimiter, productsRouter);
-  app.use("/policies", publicIpLimiter, policiesPublicRouter);
+
+  // [10x10 fix M-8] Canonical paths under /api/v1/ to match the rest of the
+  // surface. The legacy /products and /policies routes below are kept as
+  // backward-compat aliases that emit `X-Deprecated` so existing clients
+  // keep working while new integrations adopt the unified namespace.
+  app.use("/api/v1/products", publicIpLimiter, productsRouter);
+  app.use("/api/v1/policies", publicIpLimiter, policiesPublicRouter);
+
+  const deprecateAlias = (newPath: string) => (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
+    res.set("X-Deprecated", `Use ${newPath}${req.path === "/" ? "" : req.path}`);
+    next();
+  };
+
+  // Legacy aliases (kept for backward compatibility).
+  app.use("/products", publicIpLimiter, deprecateAlias("/api/v1/products"), productsRouter);
+  app.use("/policies", publicIpLimiter, deprecateAlias("/api/v1/policies"), policiesPublicRouter);
 
   // Authenticated — [Audit #36 AUTH-FLOOD] An IP-keyed limiter (60 req/min/IP)
   // runs BEFORE the route's authMiddleware, so a flood of failed auth attempts

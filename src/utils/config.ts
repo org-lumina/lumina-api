@@ -48,11 +48,14 @@ const ConfigSchema = z.object({
     .string()
     .regex(/^0x[0-9a-fA-F]{40}$/)
     .optional(),
-  // Per-purchase cap for the sandbox, in USDC base units (6-dec). Default $1.
+  // Per-purchase cap for the sandbox, in USDC base units (6-dec). Default
+  // $100 = the on-chain minimum enforced by CoverRouterV2 (`coverageAmount
+  // < 100e6` reverts InvalidCoverage / 0x2340cc3a). Lower values would make
+  // /sandbox/try fail every time.
   SANDBOX_COVER_USDC: z
     .string()
     .regex(/^\d+$/)
-    .default("1000000"),
+    .default("100000000"),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
