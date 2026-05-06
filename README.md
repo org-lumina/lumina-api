@@ -62,7 +62,7 @@ npm test
 
 | Method | Path | Tier limits |
 |--------|------|-------------|
-| POST | `/api/v1/policies` | Buy a policy via relayer. Body: `{ productId, coverageAmount, asset, buyer }`. Optional `Idempotency-Key` header. |
+| POST | `/api/v1/policies` | Buy a policy via relayer. Body: `{ productName, coverageAmount, buyer }` (preferred — API resolves productId hash + per-shield asset literal). Legacy `{ productId, coverageAmount, asset, buyer }` still works. Optional `Idempotency-Key` header. |
 | GET | `/api/v1/policies?owner=0x...` | List policies indexed by buyer. Defaults to caller's wallet. |
 | POST | `/api/v1/oracle/sign-proof` | Returns an EIP-712 signed `PriceProof` for the chosen asset, suitable to pass into `CoverRouterV2.submitTrigger(productId, policyId, oracleProof)`. Body: `{ asset: "BTC" | "ETH" }`. The signer's address must equal `LuminaOracleV2.oracleKey()` on-chain. See [`docs/architecture/ORACLE-V2.md`](https://github.com/org-lumina/LUMINA-PROTOCOL/blob/main/docs/architecture/ORACLE-V2.md) in the protocol repo. |
 | GET | `/api/v1/oracle/signer` | Returns the address whose private key signs `/sign-proof` outputs. Useful for clients that want to assert against `oracleKey()` before submitting a trigger. |
@@ -97,15 +97,18 @@ railway.toml         — Railway deploy config
 
 ## Smart contracts (Base Sepolia)
 
+> ⚠️ Addresses below are a snapshot — the canonical source is `GET /health`.
+> Always fetch from `/health` programmatically instead of hardcoding.
+
 | Contract | Address |
 |----------|---------|
-| LuminaTokenV2 | `0x17db45491561F7538e4E14449DCC34799758465D` |
-| ClaimBond | `0x5304f6732a51995651f1B666525CFeC5Af74A541` |
-| BondVault | `0x1747CDA7F84BEc4f2002ff0dcdb3c51c1C02cf6A` |
-| PolicyManagerV2 | `0x04f94Bc24aAA87aDFA643EE1e55a35C683f30804` |
-| CoverRouterV2 | `0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316` |
-| Marketplace | `0x863A7fB4A676106db4b03449b01AC5615c6C9D51` |
-| USDC (mock) | `0x63D340AE7229BB464bC801f225651341ebcD3693` |
+| LuminaTokenV2 | `0x8A0FDc2126eb9b0c88D17711D62713A1c06CF7Ab` |
+| ClaimBond | `0x3d2F5DB2505367D00ef81c51AD3cA66159271730` |
+| BondVault | `0x101F92fC506C1e60A2A0dD01eA29597EBf222d2B` |
+| PolicyManagerV2 | `0xd9732A8d6Cf5266Dd896B825E78E387B7Dd2c379` |
+| CoverRouterV2 | `0xebC3A783477FbD2720C024e16A8d63B8Db983D84` |
+| Marketplace | `0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E` |
+| USDC (mock) | `0xD944d8e5D8329994D83950872Ec210891d3Ab6AE` |
 
 ## Payment model — agent pays, relayer signs
 
@@ -132,8 +135,12 @@ Before the first call, every agent **must**:
    ```bash
    curl -X POST https://<api>/api/v1/policies \
      -H "x-api-key: lk_..." -H "Idempotency-Key: <uuid>" \
-     -d '{"productId":"0x...","coverageAmount":"1000000000","asset":"0x...","buyer":"0x..."}'
+     -d '{"productName":"FLASHBTC1H-001","coverageAmount":"1000000000","buyer":"0x..."}'
    ```
+
+   `productName` is the canonical product label — the API derives the bytes32
+   `productId` hash AND the per-shield `asset` literal from it. Hardcoding
+   `"asset":"USDC"` for every shield reverts 7-of-9 with `InvalidAsset`.
 
 If the agent skips step 1 or 2 the API surfaces the on-chain revert as a structured `tx_submit_failed` 400 with the underlying ERC-20 reason.
 
