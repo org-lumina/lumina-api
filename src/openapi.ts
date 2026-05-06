@@ -48,6 +48,8 @@ export const openapiDocument: OpenAPIDocument = {
     version: "0.1.0",
     description:
       "Programmatic access to Lumina (Base Sepolia 84532). Discover canonical contract addresses via GET /health.\n\n" +
+      "## Premium vs covered asset\n\n" +
+      "Premium is **ALWAYS paid in USDC** across all products. The `asset` field on a product (`coveredAsset`) or on `POST /api/v1/policies` refers to the *covered asset* — what the policy insures against — **not** the payment token. Discover the covered asset via `GET /products` (`coveredAsset` field).\n\n" +
       "## Authentication\n\n" +
       "- Public endpoints (`/health`, `/products`, `/policies/...`) require no auth.\n" +
       "- Authenticated endpoints under `/api/v1/*` (except `/api/v1/agent/onboard`) require an `x-api-key` header. Obtain one via `POST /api/v1/agent/onboard` (signed by your wallet) or have an admin call `POST /api/v1/keys/generate`.\n" +
@@ -71,7 +73,11 @@ export const openapiDocument: OpenAPIDocument = {
   ],
   tags: [
     { name: "discovery", description: "Service health & configuration discovery" },
-    { name: "products", description: "Insurance product catalogue and quotes" },
+    {
+      name: "products",
+      description:
+        "Insurance product catalogue and quotes. Premium is ALWAYS paid in USDC across all products. The `asset` field on a product or purchase request refers to the covered asset — what the policy insures against — not the payment token.",
+    },
     { name: "policies", description: "Buy and read insurance policies" },
     { name: "redeem", description: "Verify and record bond redemptions" },
     { name: "bonds", description: "List bonds (ERC-1155 epochs) for a wallet" },
@@ -207,7 +213,12 @@ export const openapiDocument: OpenAPIDocument = {
         type: "object",
         required: [
           "productId",
+          "name",
+          "displayName",
           "shield",
+          "coveredAsset",
+          "paymentAsset",
+          "coverageDescription",
           "payoutRatioBps",
           "triggerProbBps",
           "marginBps",
@@ -216,7 +227,38 @@ export const openapiDocument: OpenAPIDocument = {
         ],
         properties: {
           productId: { $ref: "#/components/schemas/Bytes32" },
+          name: {
+            type: "string",
+            nullable: true,
+            description:
+              "Canonical keccak256 preimage of productId (e.g. 'FLASHBTC1H-001'). Null for products whose preimage is not registered server-side.",
+            example: "FLASHBTC1H-001",
+          },
+          displayName: {
+            type: "string",
+            description: "Human-friendly label (e.g. 'Flash BTC 1h').",
+            example: "Flash BTC 1h",
+          },
           shield: { $ref: "#/components/schemas/Address" },
+          coveredAsset: {
+            type: "string",
+            enum: ["USDC", "USDT", "BTC", "ETH"],
+            description:
+              "The asset whose event is being insured against. NOT the premium payment token.",
+            example: "BTC",
+          },
+          paymentAsset: {
+            type: "string",
+            enum: ["USDC"],
+            description: "Always 'USDC'. The token used to pay the premium.",
+            example: "USDC",
+          },
+          coverageDescription: {
+            type: "string",
+            description:
+              "One-line plain-English description of what this product insures against.",
+            example: "Insures BTC against rapid price crashes within 1 hour",
+          },
           payoutRatioBps: { type: "integer", description: "Payout / coverage ratio in basis points." },
           triggerProbBps: { type: "integer", description: "Trigger probability in basis points." },
           marginBps: { type: "integer", description: "Premium margin in basis points." },
@@ -306,7 +348,11 @@ export const openapiDocument: OpenAPIDocument = {
             allOf: [{ $ref: "#/components/schemas/DecimalString" }],
             description: "USDC base units (6 decimals).",
           },
-          asset: { $ref: "#/components/schemas/Bytes32" },
+          asset: {
+            allOf: [{ $ref: "#/components/schemas/Bytes32" }],
+            description:
+              "Must match the product's coveredAsset (NOT the premium token, which is always USDC). See GET /products. Encoded as bytes32(stringRightPadded), e.g. keccak-pad of 'BTC'/'ETH'/'USDT'/'USDC'.",
+          },
           buyer: { $ref: "#/components/schemas/Address" },
         },
       },

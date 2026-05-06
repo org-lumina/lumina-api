@@ -1,6 +1,22 @@
 # Skill: Buy policy as Human (direct contract)
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base Sepolia 84532) but verify before use.
+
+> 💵 **Premium is always paid in USDC**, regardless of the `asset` field. The `asset` parameter on `POST /api/v1/policies` is the **covered asset** — what the policy insures against — not the payment token. Discover it via `GET /products` (`coveredAsset` field, added 2026-05-06).
+
+## Products at a glance
+
+| Symbol         | coveredAsset | paymentAsset | What it insures                              |
+|----------------|--------------|--------------|----------------------------------------------|
+| FLASHBTC1H-001 | BTC          | USDC         | BTC rapid price crashes within 1h            |
+| FLASHBTC4H-001 | BTC          | USDC         | BTC rapid price crashes within 4h            |
+| FLASHBTC24-001 | BTC          | USDC         | BTC rapid price crashes within 24h           |
+| FLASHBTC48-001 | BTC          | USDC         | BTC rapid price crashes within 48h           |
+| FLASHETH1H-001 | ETH          | USDC         | ETH rapid price crashes within 1h            |
+| FLASHETH24-001 | ETH          | USDC         | ETH rapid price crashes within 24h           |
+| FLASHETH48-001 | ETH          | USDC         | ETH rapid price crashes within 48h           |
+| MICRODEPEG-001 | USDT         | USDC         | USDT losing its peg to $1.00                 |
+| RATESHOCK-001  | USDC         | USDC         | USDC borrow rate shocks on Aave V3           |
 
 **For**: Humans · **Difficulty**: ⭐⭐ · **Time**: ~2 minutes
 
@@ -51,9 +67,9 @@ Pay a USDC premium with your own wallet and receive a Lumina policy bound to you
 
 This skill calls `CoverRouterV2.purchasePolicy(bytes32 productId, uint256 coverageAmount, bytes32 asset)` directly from your wallet. `msg.sender` becomes the buyer; the premium routes to the TWAPBurner atomically inside the same tx.
 
-The `asset` parameter is `bytes32` — the frontend passes `padHex(toHex('USDC'), { size: 32, dir: 'right' })`.
+The `asset` parameter is the **covered asset** (NOT the premium token — premium is always USDC). Each shield validates against a hardcoded literal: FlashBTC* → `BTC`, FlashETH* → `ETH`, MicroDepeg → `USDT`, RateShock → `USDC`. The frontend passes `padHex(toHex(coveredAsset), { size: 32, dir: 'right' })` — e.g. for FlashBTC1h: `padHex(toHex('BTC'), { size: 32, dir: 'right' })`. Sending the wrong literal reverts with `InvalidAsset(bytes32)`.
 
-Required pre-step: USDC `approve(CoverRouterV2, premium)` — see [approve-usdc](./approve-usdc.md).
+Required pre-step: USDC `approve(CoverRouterV2, premium)` — see [approve-usdc](./approve-usdc.md). (Approval is always for USDC, even when buying a BTC/ETH/USDT shield, because the premium itself is USDC.)
 
 ## Source
 

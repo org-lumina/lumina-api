@@ -2,6 +2,22 @@
 
 > 🔄 Addresses are dynamic — fetch from `GET /health`. Values below are correct as of 2026-05-06 on Base Sepolia (84532).
 
+> 💵 **Premium is always paid in USDC**, regardless of the `asset` field. The `asset` parameter on `POST /api/v1/policies` is the **covered asset** — what the policy insures against — not the payment token. Discover it via `GET /products` (`coveredAsset` field, added 2026-05-06).
+
+## Products at a glance
+
+| Symbol         | coveredAsset | paymentAsset | What it insures                              |
+|----------------|--------------|--------------|----------------------------------------------|
+| FLASHBTC1H-001 | BTC          | USDC         | BTC rapid price crashes within 1h            |
+| FLASHBTC4H-001 | BTC          | USDC         | BTC rapid price crashes within 4h            |
+| FLASHBTC24-001 | BTC          | USDC         | BTC rapid price crashes within 24h           |
+| FLASHBTC48-001 | BTC          | USDC         | BTC rapid price crashes within 48h           |
+| FLASHETH1H-001 | ETH          | USDC         | ETH rapid price crashes within 1h            |
+| FLASHETH24-001 | ETH          | USDC         | ETH rapid price crashes within 24h           |
+| FLASHETH48-001 | ETH          | USDC         | ETH rapid price crashes within 48h           |
+| MICRODEPEG-001 | USDT         | USDC         | USDT losing its peg to $1.00                 |
+| RATESHOCK-001  | USDC         | USDC         | USDC borrow rate shocks on Aave V3           |
+
 ## 1. Discover the protocol
 ```bash
 curl https://lumina-api-production-ac85.up.railway.app/health

@@ -79,6 +79,7 @@ jest.mock("../../src/utils/ethers", () => {
 });
 
 import request from "supertest";
+import { ethers } from "ethers";
 import { createApp } from "../../src/app";
 import { issueKey } from "../../src/services/keys";
 
@@ -102,6 +103,118 @@ describe("GET /products", () => {
     expect(res.body.count).toBe(2);
     expect(res.body.products[0].active).toBe(true);
     expect(res.body.products[0].payoutRatioBps).toBe(8000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// [feat/products-coveredAsset] Validate that the canonical 9-product registry
+// gets the correct coveredAsset/paymentAsset/coverageDescription. We re-mock
+// the CoverRouter inputs per test so productList() returns real keccak256
+// hashes that the productNames util can reverse-resolve.
+// ---------------------------------------------------------------------------
+describe("GET /products — coveredAsset / paymentAsset registry", () => {
+  const PRODUCTS: ReadonlyArray<readonly [string, "BTC" | "ETH" | "USDT" | "USDC", string]> = [
+    ["FLASHBTC1H-001", "BTC", "Insures BTC against rapid price crashes within 1 hour"],
+    ["FLASHBTC4H-001", "BTC", "Insures BTC against rapid price crashes within 4 hours"],
+    ["FLASHBTC24-001", "BTC", "Insures BTC against rapid price crashes within 24 hours"],
+    ["FLASHBTC48-001", "BTC", "Insures BTC against rapid price crashes within 48 hours"],
+    ["FLASHETH1H-001", "ETH", "Insures ETH against rapid price crashes within 1 hour"],
+    ["FLASHETH24-001", "ETH", "Insures ETH against rapid price crashes within 24 hours"],
+    ["FLASHETH48-001", "ETH", "Insures ETH against rapid price crashes within 48 hours"],
+    ["MICRODEPEG-001", "USDT", "Insures against USDT losing its peg to $1.00"],
+    ["RATESHOCK-001", "USDC", "Insures against USDC borrow rate shocks on Aave V3"],
+  ];
+  const IDS = PRODUCTS.map(([name]) => ethers.keccak256(ethers.toUtf8Bytes(name)).toLowerCase());
+
+  // Re-program the CoverRouter mock so productList() returns the 9 real ids.
+  beforeEach(() => {
+    const ethersMock = require("../../src/utils/ethers");
+    ethersMock.coverRouter.getProductCount.mockResolvedValueOnce(BigInt(IDS.length));
+    ethersMock.coverRouter.productList.mockImplementation(async (idx: bigint) => IDS[Number(idx)]);
+    // products() is called once per id; each call returns the same shape.
+    for (let n = 0; n < IDS.length; n++) {
+      ethersMock.coverRouter.products.mockResolvedValueOnce([
+        IDS[n],
+        8000n,
+        20n,
+        15000n,
+        3600n,
+        true,
+      ]);
+    }
+    // productShield() called once per id.
+    for (let n = 0; n < IDS.length; n++) {
+      ethersMock.policyManager.productShield.mockResolvedValueOnce(
+        "0x000000000000000000000000000000000000FEED",
+      );
+    }
+  });
+
+  it("/products returns coveredAsset for all 9 products", async () => {
+    const res = await request(app).get("/products");
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(9);
+    for (const p of res.body.products) {
+      expect(p.coveredAsset).toBeDefined();
+      expect(["BTC", "ETH", "USDT", "USDC"]).toContain(p.coveredAsset);
+      expect(p.coverageDescription).toEqual(expect.any(String));
+      expect(p.coverageDescription.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("MicroDepeg.coveredAsset === 'USDT'", async () => {
+    const res = await request(app).get("/products");
+    expect(res.status).toBe(200);
+    const md = res.body.products.find((p: any) => p.name === "MICRODEPEG-001");
+    expect(md).toBeDefined();
+    expect(md.coveredAsset).toBe("USDT");
+    expect(md.paymentAsset).toBe("USDC");
+    expect(md.coverageDescription).toBe("Insures against USDT losing its peg to $1.00");
+  });
+
+  it("RateShock.coveredAsset === 'USDC'", async () => {
+    const res = await request(app).get("/products");
+    expect(res.status).toBe(200);
+    const rs = res.body.products.find((p: any) => p.name === "RATESHOCK-001");
+    expect(rs).toBeDefined();
+    expect(rs.coveredAsset).toBe("USDC");
+    expect(rs.paymentAsset).toBe("USDC");
+    expect(rs.coverageDescription).toBe("Insures against USDC borrow rate shocks on Aave V3");
+  });
+
+  it("FlashBTC*.coveredAsset === 'BTC' for all variants", async () => {
+    const res = await request(app).get("/products");
+    expect(res.status).toBe(200);
+    const btcs = res.body.products.filter(
+      (p: any) => typeof p.name === "string" && p.name.startsWith("FLASHBTC"),
+    );
+    expect(btcs.length).toBe(4);
+    for (const p of btcs) {
+      expect(p.coveredAsset).toBe("BTC");
+      expect(p.coverageDescription).toMatch(/^Insures BTC against rapid price crashes/);
+    }
+  });
+
+  it("FlashETH*.coveredAsset === 'ETH' for all variants", async () => {
+    const res = await request(app).get("/products");
+    expect(res.status).toBe(200);
+    const eths = res.body.products.filter(
+      (p: any) => typeof p.name === "string" && p.name.startsWith("FLASHETH"),
+    );
+    expect(eths.length).toBe(3);
+    for (const p of eths) {
+      expect(p.coveredAsset).toBe("ETH");
+      expect(p.coverageDescription).toMatch(/^Insures ETH against rapid price crashes/);
+    }
+  });
+
+  it("All products have paymentAsset === 'USDC'", async () => {
+    const res = await request(app).get("/products");
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(9);
+    for (const p of res.body.products) {
+      expect(p.paymentAsset).toBe("USDC");
+    }
   });
 });
 
