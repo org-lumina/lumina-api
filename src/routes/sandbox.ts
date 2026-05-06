@@ -5,6 +5,11 @@ import { z } from "zod";
 import { HttpError } from "../middlewares/error";
 import { purchaseViaRelayer } from "../services/policies";
 import { loadConfig } from "../utils/config";
+import {
+  getExpectedAsset,
+  getExpectedAssetForName,
+  productIdFromName,
+} from "../utils/productNames";
 
 export const sandboxRouter = Router();
 
@@ -26,16 +31,23 @@ const ProductIdSchema = z
   .regex(/^0x[0-9a-fA-F]{64}$/, "productId must be bytes32 hex")
   .optional();
 
+const ProductNameSchema = z
+  .string()
+  .regex(/^[A-Z0-9-]{3,32}$/, "productName must be a canonical alphanumeric label")
+  .optional();
+
 const TrySchema = z.object({
   // Default: FLASHBTC1H — shortest-duration product, lowest premium, the
   // friendliest first call for an unauthenticated visitor.
   productId: ProductIdSchema.default(
     "0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd"
   ),
+  productName: ProductNameSchema,
 });
 
-// USDC bytes32 — pre-computed because every sandbox call uses it.
-const USDC_BYTES32 = ethers.encodeBytes32String("USDC");
+const DEFAULT_PRODUCT_ID =
+  "0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd";
+const DEFAULT_PRODUCT_NAME = "FLASHBTC1H-001";
 
 /**
  * GET /sandbox/info — returns the sandbox configuration so the UI knows
@@ -44,17 +56,23 @@ const USDC_BYTES32 = ethers.encodeBytes32String("USDC");
 sandboxRouter.get("/info", (_req, res, next) => {
   try {
     const cfg = loadConfig();
+    const defaultAsset = getExpectedAssetForName(DEFAULT_PRODUCT_NAME) ?? "USDC";
     res.json({
       ok: true,
       enabled: Boolean(cfg.SANDBOX_WALLET),
       sandboxWallet: cfg.SANDBOX_WALLET ?? null,
       coverageCapUsdc: cfg.SANDBOX_COVER_USDC,
-      asset: { symbol: "USDC", bytes32: USDC_BYTES32 },
-      defaultProductId:
-        "0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd",
-      defaultProductName: "FLASHBTC1H-001",
+      // Each shield validates a hardcoded `params.asset` literal; the symbol
+      // returned here is the one for the default product. Send `productName`
+      // (or another `productId`) to switch shields and get a different asset.
+      asset: {
+        symbol: defaultAsset,
+        bytes32: ethers.encodeBytes32String(defaultAsset),
+      },
+      defaultProductId: DEFAULT_PRODUCT_ID,
+      defaultProductName: DEFAULT_PRODUCT_NAME,
       rateLimit: { perIp: 10, windowSeconds: 3600 },
-      docs: "https://docs.lumina-org.com/agents/first-policy",
+      docs: "https://docs.lumina-org.com/agents/products-and-assets",
     });
   } catch (e) {
     next(e);
@@ -68,7 +86,12 @@ sandboxRouter.get("/info", (_req, res, next) => {
  * Costs are bounded:
  *   - cap = SANDBOX_COVER_USDC (default $1)
  *   - buyer is fixed to SANDBOX_WALLET (no buyer-controlled funds drain)
- *   - asset is fixed to USDC (no asset-injection)
+ *
+ * The asset is resolved from the productId / productName against a static
+ * registry of the deployed Shields. Each Shield's createPolicy() validates
+ * `params.asset` against a hardcoded literal (BTC for FlashBTC, ETH for
+ * FlashETH, USDT for MicroDepeg, USDC for RateShock), so a single hardcoded
+ * "USDC" reverts every shield except RateShock with InvalidAsset.
  */
 sandboxRouter.post("/try", async (req, res, next) => {
   try {
@@ -84,12 +107,38 @@ sandboxRouter.post("/try", async (req, res, next) => {
     if (!parsed.success) {
       throw new HttpError(400, parsed.error.issues[0]?.message ?? "invalid_body", "invalid_body");
     }
-    const productId = parsed.data.productId!;
+    // productName wins over productId so callers can switch shields by name
+    // without having to know the keccak hash of the canonical preimage.
+    let productId: string;
+    let assetSymbol: string | undefined;
+    if (parsed.data.productName) {
+      const id = productIdFromName(parsed.data.productName);
+      if (!id) {
+        throw new HttpError(
+          400,
+          `Unknown productName "${parsed.data.productName}". See /products for the registered set.`,
+          "unknown_product"
+        );
+      }
+      productId = id;
+      assetSymbol = getExpectedAssetForName(parsed.data.productName);
+    } else {
+      productId = parsed.data.productId!;
+      assetSymbol = getExpectedAsset(productId);
+    }
+    if (!assetSymbol) {
+      throw new HttpError(
+        400,
+        `productId ${productId} is not in the canonical asset registry. The shield's expected asset cannot be auto-resolved; pass productName or update src/utils/productNames.ts.`,
+        "unknown_product"
+      );
+    }
+    const asset = ethers.encodeBytes32String(assetSymbol);
 
     const receipt = await purchaseViaRelayer({
       productId,
       coverageAmount: BigInt(cfg.SANDBOX_COVER_USDC),
-      asset: USDC_BYTES32,
+      asset,
       buyer: cfg.SANDBOX_WALLET,
     });
 
@@ -97,6 +146,7 @@ sandboxRouter.post("/try", async (req, res, next) => {
       ok: true,
       sandbox: true,
       productId: receipt.productId,
+      assetSymbol,
       policyId: receipt.policyId,
       buyer: receipt.buyer,
       coverageAmount: receipt.coverageAmount,
