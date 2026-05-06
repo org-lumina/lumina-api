@@ -566,6 +566,93 @@ export const openapiDocument: OpenAPIDocument = {
           listings: { type: "array", items: { $ref: "#/components/schemas/Listing" } },
         },
       },
+      MarketplaceStats: {
+        type: "object",
+        required: ["floor", "volume24h", "totalListings", "totalVolume"],
+        description:
+          "Macro stats over the local marketplace store. Cached 30s. Decimal-string amounts are USDC base units (6-dec).",
+        properties: {
+          floor: {
+            $ref: "#/components/schemas/DecimalString",
+            description: "Minimum totalPriceUsdc among active listings. \"0\" when the book is empty.",
+          },
+          volume24h: {
+            $ref: "#/components/schemas/DecimalString",
+            description: "Sum of totalPaidUsdc for purchases executed in the last 24h.",
+          },
+          totalListings: {
+            type: "integer",
+            description: "Number of currently-active listings.",
+          },
+          totalVolume: {
+            $ref: "#/components/schemas/DecimalString",
+            description: "Sum of totalPaidUsdc across the full purchase history.",
+          },
+        },
+      },
+      Trade: {
+        type: "object",
+        required: [
+          "listingId",
+          "buyer",
+          "seller",
+          "bondId",
+          "amount",
+          "totalPaidUsdc",
+          "txHash",
+          "blockNumber",
+          "executedAt",
+        ],
+        properties: {
+          listingId: { $ref: "#/components/schemas/DecimalString" },
+          buyer: { $ref: "#/components/schemas/Address" },
+          seller: { $ref: "#/components/schemas/Address" },
+          bondId: { $ref: "#/components/schemas/DecimalString" },
+          amount: { $ref: "#/components/schemas/DecimalString" },
+          totalPaidUsdc: {
+            $ref: "#/components/schemas/DecimalString",
+            description: "USDC base units (6-dec). Includes buyer fee.",
+          },
+          txHash: { $ref: "#/components/schemas/Bytes32" },
+          blockNumber: { type: "integer" },
+          executedAt: { $ref: "#/components/schemas/ISO8601" },
+        },
+      },
+      MarketplaceHistoryResponse: {
+        type: "object",
+        required: ["count", "limit", "offset", "trades"],
+        properties: {
+          count: { type: "integer" },
+          limit: { type: "integer" },
+          offset: { type: "integer" },
+          trades: { type: "array", items: { $ref: "#/components/schemas/Trade" } },
+        },
+      },
+      ListingDetail: {
+        type: "object",
+        required: [
+          "listingId",
+          "seller",
+          "bondId",
+          "amount",
+          "totalPriceUsdc",
+          "txHash",
+          "blockNumber",
+          "status",
+          "createdAt",
+        ],
+        properties: {
+          listingId: { $ref: "#/components/schemas/DecimalString" },
+          seller: { $ref: "#/components/schemas/Address" },
+          bondId: { $ref: "#/components/schemas/DecimalString" },
+          amount: { $ref: "#/components/schemas/DecimalString" },
+          totalPriceUsdc: { $ref: "#/components/schemas/DecimalString" },
+          txHash: { $ref: "#/components/schemas/Bytes32" },
+          blockNumber: { type: "integer" },
+          status: { type: "string", enum: ["active", "executed", "cancelled"] },
+          createdAt: { $ref: "#/components/schemas/ISO8601" },
+        },
+      },
       OracleSignProofRequest: {
         type: "object",
         required: ["asset"],
@@ -1060,6 +1147,87 @@ export const openapiDocument: OpenAPIDocument = {
           },
           ...COMMON_ERROR_RESPONSES,
           ...AUTH_ERROR_RESPONSES,
+        },
+      },
+    },
+    "/api/v1/marketplace/stats": {
+      get: {
+        tags: ["marketplace"],
+        summary: "Marketplace macro stats",
+        description:
+          "Floor price, 24h volume, active-listing count and lifetime volume — aggregated over the local verifier-pattern store. Cached 30s server-side.",
+        security: [{ ApiKeyAuth: [] }],
+        responses: {
+          "200": {
+            description: "Stats snapshot.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/MarketplaceStats" } },
+            },
+          },
+          ...COMMON_ERROR_RESPONSES,
+          ...AUTH_ERROR_RESPONSES,
+        },
+      },
+    },
+    "/api/v1/marketplace/history": {
+      get: {
+        tags: ["marketplace"],
+        summary: "Paginated marketplace trade history",
+        description:
+          "Returns completed trades (newest first) recorded by the verifier-pattern POST /buy. Cached 30s by `(limit, offset)`.",
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+          },
+          {
+            name: "offset",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 0, default: 0 },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "History page.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/MarketplaceHistoryResponse" } },
+            },
+          },
+          ...COMMON_ERROR_RESPONSES,
+          ...AUTH_ERROR_RESPONSES,
+        },
+      },
+    },
+    "/api/v1/marketplace/listings/{listingId}": {
+      get: {
+        tags: ["marketplace"],
+        summary: "Fetch a single listing by id",
+        description:
+          "Direct fetch by on-chain listingId. Returns the full DB row (active or finalized).",
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [
+          {
+            name: "listingId",
+            in: "path",
+            required: true,
+            description: "On-chain listing id (positive integer string).",
+            schema: { $ref: "#/components/schemas/DecimalString" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Listing detail.",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/ListingDetail" } },
+            },
+          },
+          ...COMMON_ERROR_RESPONSES,
+          ...AUTH_ERROR_RESPONSES,
+          "404": errorResponse("Listing not found"),
         },
       },
     },

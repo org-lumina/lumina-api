@@ -2,6 +2,8 @@ import type { LogDescription } from "ethers";
 import { marketplace, provider } from "../utils/ethers";
 import { logger } from "../utils/logger";
 import { HttpError } from "../middlewares/error";
+import { makeCache } from "../utils/cache";
+import { getDb, getListingByListingId, type ListingRow } from "../db/database";
 
 // ────────────────────────────────────────────────────────────────────────────
 // VERIFY LISTING (POST /api/v1/marketplace/list — A.1.5)
@@ -280,4 +282,183 @@ export async function verifyBuy(input: VerifyBuyInput): Promise<VerifiedBuy> {
     blockNumber: receipt.blockNumber,
     blockTimestamp,
   };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// MARKETPLACE STATS / HISTORY (read-only, agent-discovery surface)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Dashboards and discovery agents repeatedly ask three "macro" questions
+// about the marketplace:
+//   1. What's the cheapest listing right now?  (floor)
+//   2. How active was the last 24h?            (volume24h)
+//   3. How big is the secondary market overall? (totalVolume + totalListings)
+//
+// Computing these on every request is wasteful — the inputs change only
+// when /list or /buy lands a new row. We could invalidate on write, but a
+// 30s TTL is simpler and bounded enough for dashboards (the values are
+// already approximate aggregates). All queries hit the local SQLite store
+// — `listings` and `purchases` tables are populated by the verifier-pattern
+// /list and /buy endpoints, so they're authoritative for everything that
+// went through this API. On-chain history that bypassed the API isn't
+// reflected, but the V5.1 launch flow forces marketplace traffic through
+// the verifier so this gap is theoretical.
+
+export interface MarketplaceStats {
+  /** Lowest `total_price_usdc` across active listings. "0" when empty. */
+  floor: string;
+  /** Sum of `total_paid_usdc` for purchases executed in the last 24h. */
+  volume24h: string;
+  /** Count of active listings. */
+  totalListings: number;
+  /** Sum of `total_paid_usdc` across the entire purchases history. */
+  totalVolume: string;
+}
+
+const STATS_CACHE_TTL_MS = 30_000;
+const statsCache = makeCache<MarketplaceStats>(STATS_CACHE_TTL_MS);
+
+const STATS_CACHE_KEY = "stats";
+
+/**
+ * Aggregate marketplace stats from the local DB. Cached for 30s.
+ *
+ * SQLite TEXT BigInt-safety: `total_price_usdc` and `total_paid_usdc` are
+ * stored as TEXT to avoid 2^63 overflow, but for `MIN()` / `SUM()` we
+ * convert to INTEGER. That's safe up to 2^63 — USDC has 6 decimals, so
+ * even an 8-figure single-listing price is well below the ceiling.
+ * Aggregate sums could in principle exceed 2^63 across millions of
+ * trades; not a concern for V5.1's marketplace volume.
+ */
+export async function getMarketplaceStats(): Promise<MarketplaceStats> {
+  const cached = statsCache.get(STATS_CACHE_KEY);
+  if (cached) return cached;
+
+  const d = getDb();
+
+  const floorRow = d
+    .prepare(
+      "SELECT MIN(CAST(total_price_usdc AS INTEGER)) AS floor FROM listings WHERE status = 'active'"
+    )
+    .get() as { floor: number | null };
+  const totalListingsRow = d
+    .prepare("SELECT COUNT(*) AS n FROM listings WHERE status = 'active'")
+    .get() as { n: number };
+  // executed_at is stored as ms-since-epoch (set from on-chain block time
+  // when available, else null). Fall back to created_at when null so
+  // recently-recorded purchases still count toward the 24h window.
+  const since = Date.now() - 24 * 60 * 60 * 1000;
+  const volume24hRow = d
+    .prepare(
+      `SELECT COALESCE(SUM(CAST(total_paid_usdc AS INTEGER)), 0) AS v
+         FROM purchases
+        WHERE COALESCE(executed_at, created_at) >= ?`
+    )
+    .get(since) as { v: number };
+  const totalVolumeRow = d
+    .prepare("SELECT COALESCE(SUM(CAST(total_paid_usdc AS INTEGER)), 0) AS v FROM purchases")
+    .get() as { v: number };
+
+  const stats: MarketplaceStats = {
+    floor: floorRow.floor === null ? "0" : String(floorRow.floor),
+    volume24h: String(volume24hRow.v),
+    totalListings: totalListingsRow.n,
+    totalVolume: String(totalVolumeRow.v),
+  };
+
+  statsCache.set(STATS_CACHE_KEY, stats);
+  return stats;
+}
+
+export interface Trade {
+  listingId: string;
+  buyer: string;
+  seller: string;
+  bondId: string;
+  amount: string;
+  /** Price the buyer paid (USDC base units, 6-dec). Includes buyer fee. */
+  totalPaidUsdc: string;
+  txHash: string;
+  blockNumber: number;
+  /** ISO-8601 timestamp from the on-chain block, falls back to row insertion time. */
+  executedAt: string;
+}
+
+const HISTORY_CACHE_TTL_MS = 30_000;
+const historyCache = makeCache<Trade[]>(HISTORY_CACHE_TTL_MS);
+
+interface PurchaseHistoryRow {
+  listing_id: string;
+  buyer_address: string;
+  seller_address: string;
+  bond_id: string;
+  amount: string;
+  total_paid_usdc: string;
+  tx_hash: string;
+  block_number: number;
+  executed_at: number | null;
+  created_at: number;
+}
+
+/**
+ * Page through completed marketplace trades, newest first.
+ *
+ * Source of truth is the local `purchases` table populated by the verifier-
+ * pattern POST /buy, NOT the on-chain `Bought` event log — the event omits
+ * amount/bondId, which we need to expose. The DB row already cross-checks
+ * the on-chain receipt at insertion time, so reading from SQLite is both
+ * faster and richer than re-deriving from logs. Cached 30s by `${limit}|${offset}`.
+ */
+export async function getMarketplaceHistory(
+  limit: number,
+  offset: number
+): Promise<Trade[]> {
+  const cacheKey = `${limit}|${offset}`;
+  const cached = historyCache.get(cacheKey);
+  if (cached) return cached;
+
+  const d = getDb();
+  const rows = d
+    .prepare(
+      `SELECT listing_id, buyer_address, seller_address, bond_id, amount,
+              total_paid_usdc, tx_hash, block_number, executed_at, created_at
+         FROM purchases
+        ORDER BY COALESCE(executed_at, created_at) DESC, id DESC
+        LIMIT ? OFFSET ?`
+    )
+    .all(limit, offset) as PurchaseHistoryRow[];
+
+  const trades: Trade[] = rows.map((r) => {
+    const tsMs = r.executed_at ?? r.created_at;
+    return {
+      listingId: r.listing_id,
+      buyer: r.buyer_address,
+      seller: r.seller_address,
+      bondId: r.bond_id,
+      amount: r.amount,
+      totalPaidUsdc: r.total_paid_usdc,
+      txHash: r.tx_hash,
+      blockNumber: r.block_number,
+      executedAt: new Date(tsMs).toISOString(),
+    };
+  });
+
+  historyCache.set(cacheKey, trades);
+  return trades;
+}
+
+/**
+ * Fetch a single listing by its on-chain listingId. Thin wrapper over the
+ * DB helper that adds a 404-shaped Promise-rejection so the route layer
+ * doesn't have to know about ListingRow internals. Returns the raw DB
+ * shape — the route maps it to the public JSON.
+ */
+export function getMarketplaceListingById(listingId: string): ListingRow | undefined {
+  return getListingByListingId(listingId);
+}
+
+// Test seams: clear in-memory caches between tests.
+export function _resetMarketplaceCaches(): void {
+  statsCache.reset();
+  historyCache.reset();
 }

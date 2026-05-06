@@ -4,7 +4,12 @@ import { z } from "zod";
 import { authMiddleware } from "../middlewares/auth";
 import { apiLimiter } from "../middlewares/rateLimit";
 import { HttpError } from "../middlewares/error";
-import { verifyBuy, verifyListing } from "../services/marketplace";
+import {
+  getMarketplaceHistory,
+  getMarketplaceStats,
+  verifyBuy,
+  verifyListing,
+} from "../services/marketplace";
 import {
   getListingByListingId,
   getListingByTxHash,
@@ -70,6 +75,96 @@ marketplaceAuthRouter.get("/listings", authMiddleware, apiLimiter, (req, res, ne
     next(e);
   }
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /stats — marketplace macro snapshot (Phase 2)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Cheap, cacheable summary used by dashboards and "is this market alive?"
+// agent checks. Cached 30s in `services/marketplace.getMarketplaceStats`.
+
+marketplaceAuthRouter.get("/stats", authMiddleware, apiLimiter, async (req, res, next) => {
+  try {
+    if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
+    const stats = await getMarketplaceStats();
+    res.json(stats);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /history — paginated trade history (Phase 2)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Returns completed `Bought` trades, newest first. Source of truth is the
+// local `purchases` table populated by the verifier-pattern POST /buy —
+// it has the full Trade shape (amount + bondId), which the on-chain
+// `Bought` event omits.
+
+const HistoryQuerySchema = z.object({
+  // z.coerce.number() turns "abc" into NaN → fails int()/min checks → 400.
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+marketplaceAuthRouter.get("/history", authMiddleware, apiLimiter, async (req, res, next) => {
+  try {
+    if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
+    const q = HistoryQuerySchema.parse(req.query);
+    const trades = await getMarketplaceHistory(q.limit, q.offset);
+    res.json({
+      count: trades.length,
+      limit: q.limit,
+      offset: q.offset,
+      trades,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /listings/:listingId — single-listing detail (Phase 2)
+// ────────────────────────────────────────────────────────────────────────────
+//
+// Direct fetch by on-chain listingId. Path parameter is validated as a
+// positive integer string before hitting the DB so we return a clean 400
+// for clients that pass slugs / negative numbers / floats.
+
+marketplaceAuthRouter.get(
+  "/listings/:listingId",
+  authMiddleware,
+  apiLimiter,
+  (req, res, next) => {
+    try {
+      if (!req.agent) throw new HttpError(401, "Unauthenticated", "unauthenticated");
+      const raw = String(req.params.listingId ?? "");
+      // Mirror the body-side UintStringSchema rule: positive integer,
+      // no leading sign, no decimal. Reject "0" too — listingId is 1-based.
+      if (!/^\d+$/.test(raw) || raw === "0") {
+        throw new HttpError(400, "listingId must be a positive integer string", "invalid_listing_id");
+      }
+      const row = getListingByListingId(raw);
+      if (!row) {
+        throw new HttpError(404, `Listing ${raw} not found`, "not_found");
+      }
+      res.json({
+        listingId: row.listing_id,
+        seller: row.seller_address,
+        bondId: row.bond_id,
+        amount: row.amount,
+        totalPriceUsdc: row.total_price_usdc,
+        txHash: row.tx_hash,
+        blockNumber: row.block_number,
+        status: row.status,
+        createdAt: new Date(row.created_at).toISOString(),
+      });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
 
 // ────────────────────────────────────────────────────────────────────────────
 // POST /list — A.1.5

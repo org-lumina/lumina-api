@@ -2,6 +2,7 @@ import type { BaseContract, DeferredTopicFilter, EventLog, Log } from "ethers";
 import { bondVault, claimBond, provider } from "../utils/ethers";
 import { logger } from "../utils/logger";
 import { HttpError } from "../middlewares/error";
+import { makeCache } from "../utils/cache";
 
 export type BondStatusFilter = "active" | "matured" | "redeemed" | "all";
 
@@ -111,13 +112,8 @@ export interface BondsListResult {
   pagination: { limit: number; offset: number; hasMore: boolean };
 }
 
-interface CacheEntry {
-  data: BondInfo[];
-  expiresAt: number;
-}
-
 const CACHE_TTL_MS = 60 * 1000;
-const cache = new Map<string, CacheEntry>();
+const cache = makeCache<BondInfo[]>(CACHE_TTL_MS);
 
 function isoFromUnix(seconds: bigint | number): string {
   const sec = typeof seconds === "bigint" ? Number(seconds) : seconds;
@@ -252,12 +248,11 @@ export async function getBondsByWallet(wallet: string, opts: ListBondsOptions): 
   const w = wallet.toLowerCase();
   const cacheKey = `${w}:${opts.status === "redeemed" ? "with-redeemed" : "live"}`;
 
-  // Cache lookup
-  const now = Date.now();
+  // Cache lookup (TTL handled by makeCache)
   const hit = cache.get(cacheKey);
   let allBonds: BondInfo[];
-  if (hit && hit.expiresAt > now) {
-    allBonds = hit.data;
+  if (hit) {
+    allBonds = hit;
     console.log(`[bonds] cache hit for ${w} (${allBonds.length} bonds)`);
   } else {
     const tStart = Date.now();
@@ -268,7 +263,7 @@ export async function getBondsByWallet(wallet: string, opts: ListBondsOptions): 
       logger.error({ err: e, wallet: w }, "bonds enumeration failed");
       throw new HttpError(503, `RPC failure listing bonds: ${msg}. Retry shortly.`, "rpc_unavailable");
     }
-    cache.set(cacheKey, { data: allBonds, expiresAt: now + CACHE_TTL_MS });
+    cache.set(cacheKey, allBonds);
     console.log(`[bonds] total bonds for ${w}: ${allBonds.length} (${Date.now() - tStart}ms total)`);
   }
 
@@ -307,5 +302,5 @@ export async function getBondsByWallet(wallet: string, opts: ListBondsOptions): 
 
 // Test seam: clear the in-memory cache between test cases.
 export function _resetBondsCache(): void {
-  cache.clear();
+  cache.reset();
 }
