@@ -40,21 +40,21 @@ for the full table.
 
 ## 4. Get a quote (no auth needed)
 ```bash
-curl "https://lumina-api-production-ac85.up.railway.app/products/FLASHBTC1H-001/quote?coverageAmount=50000000"
+curl "https://lumina-api-production-ac85.up.railway.app/products/FLASHBTC1H-001/quote?coverageAmount=100000000"
 ```
 
-## 5. Buy a $50 policy
+## 5. Buy a $100 policy
 ```bash
 curl -X POST -H "x-api-key: $LUMINA_API_KEY" -H "Content-Type: application/json" \
   -d '{
     "productName":    "FLASHBTC1H-001",
-    "coverageAmount": "50000000",
+    "coverageAmount": "100000000",
     "buyer":          "0xYourWalletAddress"
   }' \
   https://lumina-api-production-ac85.up.railway.app/api/v1/policies
 ```
 
-`coverageAmount` is in USDC base units (×10^6). `productName` is the canonical
+`coverageAmount` is in USDC base units (×10^6); **minimum $100 = `"100000000"`** (enforced on-chain). `productName` is the canonical
 product label — the API derives the `productId` hash AND the per-shield
 `asset` literal from it. `buyer` must hold and have approved enough USDC to
 cover the premium. Hardcoding `asset: "USDC"` for every shield reverts 7-of-9

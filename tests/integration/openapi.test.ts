@@ -63,6 +63,20 @@ describe("GET /openapi.json", () => {
     expect(sec.ApiKeyAuth).toMatchObject({ type: "apiKey", in: "header", name: "x-api-key" });
     expect(sec.AdminTokenAuth).toMatchObject({ type: "apiKey", in: "header", name: "x-admin-token" });
   });
+
+  it("includes /api/v1/auth/me with ApiKeyAuth", async () => {
+    const res = await request(app).get("/openapi.json");
+    const path = res.body.paths?.["/api/v1/auth/me"];
+    expect(path).toBeDefined();
+    expect(path.get).toBeDefined();
+    expect(path.get.security).toEqual([{ ApiKeyAuth: [] }]);
+    const ok = path.get.responses?.["200"];
+    expect(ok).toBeDefined();
+    const props = ok?.content?.["application/json"]?.schema?.properties ?? {};
+    expect(props.wallet).toBeDefined();
+    expect(props.apiKeyPrefix).toBeDefined();
+    expect(props.tier).toBeDefined();
+  });
 });
 
 describe("GET /api-docs", () => {
