@@ -13,6 +13,7 @@ import { oracleAuthRouter } from "./routes/oracle";
 import { agentRouter } from "./routes/agent";
 import { webhooksAuthRouter } from "./routes/webhooks";
 import { sandboxRouter } from "./routes/sandbox";
+import { authRouter } from "./routes/auth";
 import { openapiDocument } from "./openapi";
 import { errorHandler, notFoundHandler } from "./middlewares/error";
 import { authIpLimiter, publicIpLimiter } from "./middlewares/rateLimit";
@@ -102,6 +103,7 @@ export function createApp(): Application {
   app.use("/api/v1/bonds", authIpLimiter, bondsAuthRouter);
   app.use("/api/v1/marketplace", authIpLimiter, marketplaceAuthRouter);
   app.use("/api/v1/oracle", authIpLimiter, oracleAuthRouter);
+  app.use("/api/v1/auth", authIpLimiter, authRouter);
 
   // Admin (admin token + adminLimiter inside the router).
   app.use("/api/v1/keys", keysRouter);

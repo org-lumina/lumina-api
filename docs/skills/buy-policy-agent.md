@@ -36,7 +36,7 @@ product label) and auto-resolve both the bytes32 `productId` AND the per-shield
 const policy = await lumina.policies.purchase({
   productName: 'FLASHBTC1H-001',   // SDK derives productId hash + asset='BTC'
   buyer: '0xYourWalletAddress',
-  coverageAmount: '50000000',      // $50 in 6-dec USDC
+  coverageAmount: '100000000',     // $100 in 6-dec USDC (on-chain minimum)
 })
 ```
 
@@ -107,7 +107,7 @@ WHEN TO STOP:
 
 ## HTTP examples
 
-### curl (copy-paste ready, $50 cover on FLASHBTC24-001)
+### curl (copy-paste ready, $100 cover on FLASHBTC24-001)
 
 ```bash
 curl -X POST https://lumina-api-production-ac85.up.railway.app/api/v1/policies \
@@ -116,12 +116,12 @@ curl -X POST https://lumina-api-production-ac85.up.railway.app/api/v1/policies \
   -H "Idempotency-Key: $(uuidgen)" \
   -d '{
     "productName":    "FLASHBTC24-001",
-    "coverageAmount": "50000000",
+    "coverageAmount": "100000000",
     "buyer":          "0xYourWalletAddress"
   }'
 ```
 
-> `coverageAmount: "50000000"` = $50 (USDC has 6 decimals → multiply USD by 1_000_000).
+> `coverageAmount: "100000000"` = $100 (USDC has 6 decimals → multiply USD by 1_000_000). **Minimum $100 enforced on-chain** by `CoverRouterV2`; anything below reverts with `coverage_below_minimum`.
 > `productName` is the canonical product label — the API derives the bytes32 `productId` hash AND the per-shield `asset` literal from it (FlashBTC → `BTC`, FlashETH → `ETH`, MicroDepeg → `USDT`, RateShock → `USDC`).
 > `buyer` MUST be the wallet that consents to pay the premium — the relayer pays gas, the buyer's wallet provides the USDC.
 
@@ -139,7 +139,7 @@ const res = await fetch('https://lumina-api-production-ac85.up.railway.app/api/v
   },
   body: JSON.stringify({
     productName: 'FLASHBTC24-001',  // API resolves productId hash + asset='BTC'
-    coverageAmount: '50000000',     // $50 in USDC base units
+    coverageAmount: '100000000',    // $100 in USDC base units (on-chain minimum)
     buyer: '0xYourWalletAddress',
   }),
 })
@@ -158,7 +158,7 @@ const lumina = new LuminaClient({ apiKey: process.env.LUMINA_API_KEY! })
 const policy = await lumina.policies.purchase({
   productName: 'FLASHBTC24-001',  // SDK resolves productId hash + asset='BTC'
   buyer: '0xYourWalletAddress',
-  coverageAmount: '50000000',
+  coverageAmount: '100000000',
 })
 
 console.log('policyId:', policy.policyId)
@@ -194,7 +194,7 @@ res = requests.post(
     json={
         # API derives productId hash AND per-shield asset literal from productName.
         'productName': 'FLASHBTC24-001',
-        'coverageAmount': '50000000',
+        'coverageAmount': '100000000',
         'buyer': '0xYourWalletAddress',
     },
 )
@@ -221,7 +221,7 @@ the same response without double-spending.
 
 - `productName` is the **preferred input**. The API derives the keccak256 productId AND the per-shield asset literal from it; you cannot accidentally pair `FLASHBTC1H-001` with `USDC`.
 - `productId` is the **bytes32 keccak256 of the canonical product name** — see the table above. Required only when `productName` is absent.
-- `coverageAmount` is in **USDC base units** (USDC has 6 decimals). For $50 send `"50000000"`. For $5,000 send `"5000000000"`. Always pass as a string to preserve precision in JSON.
+- `coverageAmount` is in **USDC base units** (USDC has 6 decimals). **Minimum: $100 = `"100000000"`** (enforced on-chain by `CoverRouterV2`). For $1,000 send `"1000000000"`. Always pass as a string to preserve precision in JSON.
 - `asset` is **optional**. When omitted the API resolves it from the registry (FlashBTC* → `BTC`, FlashETH* → `ETH`, MicroDepeg → `USDT`, RateShock → `USDC`). To override, pass a bytes32 hex; sending the wrong literal reverts with `InvalidAsset(bytes32)`.
 - `buyer` is the **wallet that consents to pay the premium**. The relayer pays gas; this wallet provides the USDC.
 
@@ -236,7 +236,7 @@ Includes the on-chain `policyId` and the relayer tx hash for verification. Shape
     "id": "<onchain policyId>",
     "productId": "0x…",
     "buyer": "0x…",
-    "coverageAmount": "50000000",
+    "coverageAmount": "100000000",
     "premiumPaid": "<USDC base units>",
     "txHash": "0x…"
   }

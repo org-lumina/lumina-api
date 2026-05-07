@@ -346,7 +346,7 @@ export const openapiDocument: OpenAPIDocument = {
           productId: { $ref: "#/components/schemas/Bytes32" },
           coverageAmount: {
             allOf: [{ $ref: "#/components/schemas/DecimalString" }],
-            description: "USDC base units (6 decimals).",
+            description: "USDC base units (6 decimals). Minimum: 100000000 (= $100), enforced on-chain by CoverRouterV2.",
           },
           asset: {
             allOf: [{ $ref: "#/components/schemas/Bytes32" }],
@@ -1322,6 +1322,35 @@ export const openapiDocument: OpenAPIDocument = {
           "400": errorResponse("Invalid id"),
           "401": errorResponse("Missing or invalid x-admin-token"),
           "404": errorResponse("Key not found or already revoked"),
+          "429": errorResponse("Rate limit exceeded"),
+        },
+      },
+    },
+    "/api/v1/auth/me": {
+      get: {
+        tags: ["agent"],
+        summary: "Return the wallet associated with the calling API key",
+        description:
+          "Lightweight introspection used by the SDK to auto-discover the calling wallet so methods like `bonds.list()` and `policies.list()` can default to the right wallet without the caller threading it through every call. NEVER returns the secret — only the wallet, an 11-char prefix of the key for log/UI disambiguation, and the tier.",
+        security: [{ ApiKeyAuth: [] }],
+        responses: {
+          "200": {
+            description: "Identity of the calling key.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["wallet", "apiKeyPrefix", "tier"],
+                  properties: {
+                    wallet: { $ref: "#/components/schemas/Address" },
+                    apiKeyPrefix: { type: "string", example: "lk_a1b2c3d4" },
+                    tier: { type: "string", enum: ["free", "paid"] },
+                  },
+                },
+              },
+            },
+          },
+          ...AUTH_ERROR_RESPONSES,
           "429": errorResponse("Rate limit exceeded"),
         },
       },
