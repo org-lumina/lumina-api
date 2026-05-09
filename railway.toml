@@ -3,7 +3,11 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "node dist/server.js"
+# [Sprint K] `npm run concurrent` boots both the API (port 3000) and the
+# Ponder indexer (port 42069 internal — not exposed) under the same Railway
+# service. concurrently --kill-others-on-fail propagates either process's
+# exit so Railway's restart policy treats them as a single unit. See ADR-008.
+startCommand = "npm run concurrent"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
 healthcheckPath = "/health"
@@ -13,3 +17,10 @@ healthcheckTimeout = 30
 #   PORT, NODE_ENV, RPC_URL, CHAIN_ID, RELAYER_PRIVATE_KEY, ADMIN_TOKEN,
 #   LUMINA_TOKEN, CLAIM_BOND, BOND_VAULT, POLICY_MANAGER, COVER_ROUTER,
 #   MARKETPLACE, USDC, DB_PATH
+# [Sprint K] additional vars for the Ponder indexer:
+#   DATABASE_URL                  ← Postgres plugin attaches automatically
+#   RPC_URL_QUICKNODE             ← Sprint F multi-RPC primary for indexer
+#   FOUNDER_VESTING               ← address of FounderVesting (defaults to manifest)
+#   TWAP_BURNER                   ← address of TWAPBurner (defaults to manifest)
+#   DEPLOYMENT_BLOCK_CLAIMBOND    ← block where Sprint C deploy started; lookup
+#                                   in BaseScan if unset

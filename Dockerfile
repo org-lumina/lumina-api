@@ -5,10 +5,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 build-e
     && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json* ./
 RUN npm ci || npm install
+# [Sprint K] indexer/ is a sub-package with its own deps (Ponder, viem, hono).
+# Install separately so Docker layer caching doesn't invalidate the API
+# install when only indexer code changes.
+COPY indexer/package.json indexer/package-lock.json* ./indexer/
+RUN cd indexer && (npm ci || npm install)
 
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/indexer/node_modules ./indexer/node_modules
 COPY . .
 RUN npm run build
 
@@ -26,7 +32,11 @@ COPY --from=build --chown=lumina:lumina /app/node_modules ./node_modules
 COPY --from=build --chown=lumina:lumina /app/dist ./dist
 COPY --from=build --chown=lumina:lumina /app/abis ./abis
 COPY --from=build --chown=lumina:lumina /app/package.json ./package.json
+# [Sprint K] indexer artifacts: source TS (Ponder runs via TS at runtime, not
+# pre-compiled) + node_modules + ABI JSON. Ponder doesn't have a `npm run build`
+# step — it transpiles on the fly with esbuild internally.
+COPY --from=build --chown=lumina:lumina /app/indexer ./indexer
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["node", "dist/server.js"]
+CMD ["npm", "run", "concurrent"]

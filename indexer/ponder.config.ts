@@ -1,13 +1,11 @@
 import { createConfig } from "ponder";
 import { http, fallback } from "viem";
 
-import CoverRouterAbi from "../abis/CoverRouterV2.json" with { type: "json" };
-import ClaimBondAbi from "../abis/ClaimBond.json" with { type: "json" };
-import BondVaultAbi from "../abis/BondVault.json" with { type: "json" };
-import TwapBurnerAbi from "../abis/TWAPBurner.json" with { type: "json" };
-// FounderVesting ABI is not currently in lumina-api/abis. Founder must
-// drop the JSON in `abis/FounderVesting.json` (from foundry's `out/`)
-// before the first `ponder dev` run. Stub line 26 will fail until then.
+import CoverRouterAbi from "./abis/CoverRouterV2.json" with { type: "json" };
+import ClaimBondAbi from "./abis/ClaimBond.json" with { type: "json" };
+import BondVaultAbi from "./abis/BondVault.json" with { type: "json" };
+import TwapBurnerAbi from "./abis/TWAPBurner.json" with { type: "json" };
+import FounderVestingAbi from "./abis/FounderVesting.json" with { type: "json" };
 
 /**
  * Sprint J — Ponder indexer config.
@@ -64,12 +62,12 @@ export default createConfig({
         "0xc838BEDE6BE624f6b7b69be71b7587ce51186D75") as `0x${string}`,
       startBlock: Number(process.env.DEPLOYMENT_BLOCK_CLAIMBOND ?? "0"),
     },
-    // FounderVesting handler stubbed until ABI is dropped into abis/.
-    // FounderVesting: {
-    //   network: "baseSepolia",
-    //   abi: FounderVestingAbi as never,
-    //   address: process.env.FOUNDER_VESTING ?? "0xa3e7685E21A141930F63432E927D679fD3FDE876",
-    //   startBlock: Number(process.env.DEPLOYMENT_BLOCK_CLAIMBOND ?? "0"),
-    // },
+    FounderVesting: {
+      network: "baseSepolia",
+      abi: FounderVestingAbi as never,
+      address: ((process.env as Record<string, string | undefined>).FOUNDER_VESTING ??
+        "0xa3e7685E21A141930F63432E927D679fD3FDE876") as `0x${string}`,
+      startBlock: Number(process.env.DEPLOYMENT_BLOCK_CLAIMBOND ?? "0"),
+    },
   },
 });

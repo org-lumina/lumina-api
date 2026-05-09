@@ -14,6 +14,7 @@ import { agentRouter } from "./routes/agent";
 import { webhooksAuthRouter } from "./routes/webhooks";
 import { sandboxRouter } from "./routes/sandbox";
 import { authRouter } from "./routes/auth";
+import { indexerRouter } from "./routes/indexer";
 import { openapiDocument } from "./openapi";
 import { errorHandler, notFoundHandler } from "./middlewares/error";
 import { authIpLimiter, publicIpLimiter } from "./middlewares/rateLimit";
@@ -121,6 +122,13 @@ export function createApp(): Application {
   // (testnet) USDC out of a pre-funded wallet, so abuse is metered at the
   // IP boundary.
   app.use("/sandbox", sandboxRouter);
+
+  // [Sprint K] Indexer surface — public read-only views of the Ponder
+  // Postgres tables. Endpoints under /api/v1/{stats,policies,bonds,
+  // triggers,marketplace,burns,vesting,indexer}. The IP rate-limiter is
+  // applied inside the router (`indexerRouter.use(publicIpLimiter)` in
+  // routes/indexer.ts). See ADR-008 for the same-repo decision.
+  app.use("/api/v1", indexerRouter);
 
   // OpenAPI spec + Swagger UI — both unauthenticated, gated by the public
   // IP limiter. The spec is the source of truth for external agents that
