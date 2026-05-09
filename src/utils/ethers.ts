@@ -1,4 +1,4 @@
-import { Contract, JsonRpcProvider, Wallet } from "ethers";
+import { Contract, FallbackProvider, JsonRpcProvider, Network, Wallet } from "ethers";
 import { loadConfig } from "./config";
 
 import CoverRouterArtifact from "../../abis/CoverRouterV2.json";
@@ -17,10 +17,36 @@ interface Artifact {
 
 const cfg = loadConfig();
 
-export const provider = new JsonRpcProvider(cfg.RPC_URL, cfg.CHAIN_ID, {
-  staticNetwork: true,
+// [Sprint F] Multi-RPC FallbackProvider.
+// Primary: RPC_URL (Alchemy, weight 2). Fallbacks: RPC_URL_QUICKNODE (when set,
+// weight 1) and RPC_URL_PUBLIC (defaults to https://sepolia.base.org, weight 1).
+// `quorum: 1` means the first provider to respond wins — no consensus needed.
+// `stallTimeout: 2000` ms before ethers tries the next provider.
+const PUBLIC_FALLBACK = "https://sepolia.base.org";
+const network = Network.from(cfg.CHAIN_ID);
+
+function jsonRpc(url: string): JsonRpcProvider {
+  return new JsonRpcProvider(url, network, { staticNetwork: true });
+}
+
+const fallbackProviders: { provider: JsonRpcProvider; priority: number; weight: number; stallTimeout: number }[] = [
+  { provider: jsonRpc(cfg.RPC_URL), priority: 1, weight: 2, stallTimeout: 2000 },
+];
+if (cfg.RPC_URL_QUICKNODE) {
+  fallbackProviders.push({ provider: jsonRpc(cfg.RPC_URL_QUICKNODE), priority: 2, weight: 1, stallTimeout: 2000 });
+}
+fallbackProviders.push({
+  provider: jsonRpc(cfg.RPC_URL_PUBLIC ?? PUBLIC_FALLBACK),
+  priority: 3,
+  weight: 1,
+  stallTimeout: 2000,
 });
 
+export const provider: FallbackProvider = new FallbackProvider(fallbackProviders, network, { quorum: 1 });
+
+// `relayer` signs txs. ethers v6 lets a Wallet attach to either a JsonRpcProvider
+// or a FallbackProvider; for the latter, broadcasts go through the elected
+// primary, while reads can fan out across the fallbacks.
 export const relayer = new Wallet(cfg.RELAYER_PRIVATE_KEY, provider);
 
 function readonly(address: string, artifact: Artifact): Contract {
