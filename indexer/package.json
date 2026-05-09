@@ -1,0 +1,26 @@
+{
+  "name": "lumina-indexer",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Ponder indexer for LUMINA Protocol — runs alongside lumina-api on the same Railway service. Sprint J skeleton; founder runs `npm install` post-merge.",
+  "type": "module",
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start",
+    "codegen": "ponder codegen",
+    "lint": "eslint \"{src,abis}/**/*.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ponder": "^0.7.0",
+    "viem": "^2.21.0",
+    "hono": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
