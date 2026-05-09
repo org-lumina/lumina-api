@@ -7,6 +7,12 @@ const ConfigSchema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 
   RPC_URL: z.string().url(),
+  // [Sprint F] Optional fallback RPCs. When set, ethers wraps the primary +
+  // these into a FallbackProvider so a single provider outage doesn't take
+  // the API down. Public Base Sepolia (https://sepolia.base.org) is added
+  // automatically as last-resort if RPC_URL_PUBLIC is unset.
+  RPC_URL_QUICKNODE: z.string().url().optional(),
+  RPC_URL_PUBLIC: z.string().url().optional(),
   CHAIN_ID: z.coerce.number().int().positive().default(84532),
 
   RELAYER_PRIVATE_KEY: z
