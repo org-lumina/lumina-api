@@ -1,5 +1,5 @@
 import { ponder } from "ponder:registry";
-import { policy, bond, burn, trigger } from "ponder:schema";
+import { policy, bond, burn, trigger, vestingClaim } from "ponder:schema";
 
 /**
  * Sprint J — handlers stub.
@@ -115,22 +115,22 @@ ponder.on("CoverRouterV2:TriggerSubmitted", async ({ event, context }) => {
   });
 });
 
-// ─────────────────── 5. FounderVesting.TrancheReleased — STUBBED ───────────────────
-// Pending: drop `abis/FounderVesting.json` into the parent `abis/` directory
-// + uncomment the FounderVesting block in `ponder.config.ts`. Then enable:
-//
-// ponder.on("FounderVesting:TrancheReleased", async ({ event, context }) => {
-//   await context.db.insert(vestingClaim).values({
-//     id: `${event.transaction.hash}-${event.log.logIndex}`,
-//     recipient: (event.args as any).recipient as string,
-//     vestingType: "founder",
-//     trancheNumber: Number((event.args as any).trancheNumber),
-//     amount: (event.args as any).amount as bigint,
-//     txHash: event.transaction.hash,
-//     blockNumber: event.block.number,
-//     blockTimestamp: event.block.timestamp,
-//   });
-// });
+// ─────────────────── 5. FounderVesting.TrancheReleased ───────────────────
+// FounderVesting.sol:73 emits `TrancheReleased(uint256 trancheNumber,
+// uint256 amount, address recipient)` on each of the 3 tranche releases
+// (31 days apart after AltSeason trigger).
+ponder.on("FounderVesting:TrancheReleased", async ({ event, context }) => {
+  await context.db.insert(vestingClaim).values({
+    id: `${event.transaction.hash}-${event.log.logIndex}`,
+    recipient: (event.args as any).recipient as string,
+    vestingType: "founder",
+    trancheNumber: Number((event.args as any).trancheNumber),
+    amount: (event.args as any).amount as bigint,
+    txHash: event.transaction.hash,
+    blockNumber: event.block.number,
+    blockTimestamp: event.block.timestamp,
+  });
+});
 
 // ─────────────────── helpers ───────────────────
 
