@@ -14,6 +14,7 @@ import { agentRouter } from "./routes/agent";
 import { webhooksAuthRouter } from "./routes/webhooks";
 import { sandboxRouter } from "./routes/sandbox";
 import { authRouter } from "./routes/auth";
+import { faucetRouter } from "./routes/faucet";
 // [Sprint K disabled — Phase 2 retake] Indexer router import + mount
 // commented while Ponder runtime is parked. Re-enable when restoring
 // `npm run concurrent`.
@@ -125,6 +126,13 @@ export function createApp(): Application {
   // (testnet) USDC out of a pre-funded wallet, so abuse is metered at the
   // IP boundary.
   app.use("/sandbox", sandboxRouter);
+
+  // [Sprint L] Faucet — public POST /api/v1/faucet/claim sends 100 mock
+  // USDC + 0.05 Sepolia ETH to a wallet, gated by 1/wallet/24h + 1/IP/24h
+  // + a daily cap of 50 (caps relayer drain). GET /faucet/status surfaces
+  // current balance + remaining slots. Mounted at /api/v1 (no auth, no
+  // captcha — testnet only, used by humans and AI agents alike).
+  app.use("/api/v1", faucetRouter);
 
   // [Sprint K disabled — Phase 2 retake] Indexer surface — public
   // read-only views of the Ponder Postgres tables. Endpoints under
