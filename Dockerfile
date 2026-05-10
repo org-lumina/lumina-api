@@ -25,7 +25,7 @@ ENV NODE_ENV=production
 # fixing volume permissions at boot. Railway mounts persistent volumes owned
 # by root; without this dance, the lumina user cannot write to /data and
 # better-sqlite3 fails with SQLITE_CANTOPEN.
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates gosu \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates gosu procps \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --create-home --uid 10001 lumina
 COPY --from=build --chown=lumina:lumina /app/node_modules ./node_modules
