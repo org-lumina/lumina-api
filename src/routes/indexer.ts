@@ -36,7 +36,7 @@ const OffsetSchema = z.coerce.number().int().nonnegative().default(0);
 // ─────────────────────────────────────────────────────────────────────────
 // 1. /api/v1/indexer/health — lag + sync state
 // ─────────────────────────────────────────────────────────────────────────
-indexerRouter.get("/health", async (_req, res, next) => {
+indexerRouter.get("/indexer/health", async (_req, res, next) => {
   try {
     const [{ lastSyncedBlock }, headBlock] = await Promise.all([
       getIndexerSyncState(),
