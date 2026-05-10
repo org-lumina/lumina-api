@@ -39,4 +39,7 @@ COPY --from=build --chown=lumina:lumina /app/indexer ./indexer
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["npm", "run", "concurrent"]
+# [Sprint K disabled — Phase 2 retake] Was: CMD ["npm", "run", "concurrent"]
+# (boots API + Ponder indexer via concurrently). Indexer parked asleep —
+# only the API runs. Restore "concurrent" once Ponder issues are fixed.
+CMD ["npm", "start"]
