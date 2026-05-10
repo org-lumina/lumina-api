@@ -3,11 +3,13 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# [Sprint K] `npm run concurrent` boots both the API (port 3000) and the
-# Ponder indexer (port 42069 internal — not exposed) under the same Railway
-# service. concurrently --kill-others-on-fail propagates either process's
-# exit so Railway's restart policy treats them as a single unit. See ADR-008.
-startCommand = "npm run concurrent"
+# [Sprint K disabled — Phase 2 retake] The Ponder indexer was wired into
+# the API process via `npm run concurrent`, but the runtime crashed
+# repeatedly through 4 hotfixes (PR #27/#28/#29/#30). Founder decision:
+# park the indexer asleep, keep the code/deps/ABIs intact, run only the
+# API for now. Re-enable in Phase 2 by switching this back to
+# "npm run concurrent" once the Ponder issues are resolved.
+startCommand = "npm start"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
 healthcheckPath = "/health"
