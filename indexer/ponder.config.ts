@@ -52,7 +52,7 @@ export default createConfig({
       network: "baseSepolia",
       abi: BondVaultAbi as never,
       address: (process.env.BOND_VAULT ??
-        "0x9EfdD63B13543B30B49b2b423903233220B3726c") as `0x${string}`,
+        "0x49c21d5C7b399f9BfB36801F5c680904E6c69949") as `0x${string}`,
       startBlock: Number(process.env.DEPLOYMENT_BLOCK_CLAIMBOND ?? "0"),
     },
     TWAPBurner: {
