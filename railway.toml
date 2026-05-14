@@ -3,11 +3,13 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# [Sprint BB Phase 2 closure] Ponder reactivated via `npm run concurrent`.
-# superjson override 2.2.0 active (PR #30 fix) — verifies the prototype
-# pollution guard collision is bypassed. Hibernation tracked in PR #31
-# (now superseded). See ADR-020 in lumina-testnet-tracker.
-startCommand = "npm run concurrent"
+# [Sprint K disabled — Phase 2 retake] The Ponder indexer was wired into
+# the API process via `npm run concurrent`, but the runtime crashed
+# repeatedly through 4 hotfixes (PR #27/#28/#29/#30). Founder decision:
+# park the indexer asleep, keep the code/deps/ABIs intact, run only the
+# API for now. Re-enable in Phase 2 by switching this back to
+# "npm run concurrent" once the Ponder issues are resolved.
+startCommand = "npm start"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
 healthcheckPath = "/health"
