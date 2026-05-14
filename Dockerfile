@@ -39,7 +39,7 @@ COPY --from=build --chown=lumina:lumina /app/indexer ./indexer
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-# [Sprint K disabled — Phase 2 retake] Was: CMD ["npm", "run", "concurrent"]
-# (boots API + Ponder indexer via concurrently). Indexer parked asleep —
-# only the API runs. Restore "concurrent" once Ponder issues are fixed.
-CMD ["npm", "start"]
+# [Sprint BB.1] Reactivated `concurrent` (boots API + Ponder indexer side-by-side
+# via the `concurrently` runner). PR #30 superjson@2.2.0 override is in place;
+# this verifies the indexer no longer crashes on startup.
+CMD ["npm", "run", "concurrent"]

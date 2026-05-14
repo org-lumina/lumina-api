@@ -15,10 +15,8 @@ import { webhooksAuthRouter } from "./routes/webhooks";
 import { sandboxRouter } from "./routes/sandbox";
 import { authRouter } from "./routes/auth";
 import { faucetRouter } from "./routes/faucet";
-// [Sprint K disabled — Phase 2 retake] Indexer router import + mount
-// commented while Ponder runtime is parked. Re-enable when restoring
-// `npm run concurrent`.
-// import { indexerRouter } from "./routes/indexer";
+// [Sprint BB.1] Indexer router restored. Ponder runs concurrently per Dockerfile CMD.
+import { indexerRouter } from "./routes/indexer";
 import { openapiDocument } from "./openapi";
 import { errorHandler, notFoundHandler } from "./middlewares/error";
 import { authIpLimiter, publicIpLimiter } from "./middlewares/rateLimit";
@@ -137,12 +135,10 @@ export function createApp(): Application {
   // [Sprint K disabled — Phase 2 retake] Indexer surface — public
   // read-only views of the Ponder Postgres tables. Endpoints under
   // /api/v1/{stats,policies,bonds,triggers,marketplace,burns,vesting,
-  // indexer}. Disabled while the Ponder runtime is parked: with no
-  // indexer process, every endpoint would 503 — confusing. Re-enable
-  // alongside `npm run concurrent` in railway.toml + Dockerfile. The
-  // import at the top of this file is intentionally retained so a
-  // future re-enable is a one-line uncomment, not a rebuild.
-  // app.use("/api/v1", indexerRouter);
+  // [Sprint BB.1] Indexer routes re-mounted under /api/v1. Concurrently
+  // boots Ponder in the same container so the 13 endpoints have a backing
+  // process.
+  app.use("/api/v1", indexerRouter);
 
   // OpenAPI spec + Swagger UI — both unauthenticated, gated by the public
   // IP limiter. The spec is the source of truth for external agents that
