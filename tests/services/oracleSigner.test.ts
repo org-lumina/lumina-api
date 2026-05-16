@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 
 const TEST_PRIVKEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
 const TEST_ADDR = ethers.computeAddress(TEST_PRIVKEY);
-const ORACLE_ADDR = "0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194";
+const ORACLE_ADDR = "0x0000000000000000000000000000000000000000";
 
 process.env.PORT = "3000";
 process.env.NODE_ENV = "test";

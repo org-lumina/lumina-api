@@ -18,8 +18,10 @@ import FounderVestingAbi from "./abis/FounderVesting.json" with { type: "json" }
  * FallbackProvider topology (Sprint F).
  *
  * Contract addresses are sourced from environment so a redeploy doesn't
- * require a code change. Defaults match the Sprint H manifest snapshot.
+ * require a code change. Sprint Z.2: literal defaults removed pre-redeploy;
+ * fallback is the zero address — env vars MUST be set in production.
  */
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 const TRANSPORT = fallback([
   http(process.env.RPC_URL_QUICKNODE),
   http(process.env.RPC_URL),
@@ -37,36 +39,33 @@ export default createConfig({
     CoverRouterV2: {
       network: "baseSepolia",
       abi: CoverRouterAbi as never,
-      address: (process.env.COVER_ROUTER ??
-        "0xFA6d57CA87a26F08d68f2123e86990E2fD70B7AE") as `0x${string}`,
+      address: (process.env.COVER_ROUTER ?? ZERO_ADDRESS) as `0x${string}`,
       startBlock: Number(process.env.DEPLOYMENT_BLOCK_CLAIMBOND ?? "0"),
     },
     ClaimBond: {
       network: "baseSepolia",
       abi: ClaimBondAbi as never,
-      address: (process.env.CLAIM_BOND ??
-        "0xde85056F155d3F18e559Fa63d5861ab3D1318cF0") as `0x${string}`,
+      address: (process.env.CLAIM_BOND ?? ZERO_ADDRESS) as `0x${string}`,
       startBlock: Number(process.env.DEPLOYMENT_BLOCK_CLAIMBOND ?? "0"),
     },
     BondVault: {
       network: "baseSepolia",
       abi: BondVaultAbi as never,
-      address: (process.env.BOND_VAULT ??
-        "0x49c21d5C7b399f9BfB36801F5c680904E6c69949") as `0x${string}`,
+      address: (process.env.BOND_VAULT ?? ZERO_ADDRESS) as `0x${string}`,
       startBlock: Number(process.env.DEPLOYMENT_BLOCK_CLAIMBOND ?? "0"),
     },
     TWAPBurner: {
       network: "baseSepolia",
       abi: TwapBurnerAbi as never,
       address: ((process.env as Record<string, string | undefined>).TWAP_BURNER ??
-        "0xc838BEDE6BE624f6b7b69be71b7587ce51186D75") as `0x${string}`,
+        ZERO_ADDRESS) as `0x${string}`,
       startBlock: Number(process.env.DEPLOYMENT_BLOCK_CLAIMBOND ?? "0"),
     },
     FounderVesting: {
       network: "baseSepolia",
       abi: FounderVestingAbi as never,
       address: ((process.env as Record<string, string | undefined>).FOUNDER_VESTING ??
-        "0xa3e7685E21A141930F63432E927D679fD3FDE876") as `0x${string}`,
+        ZERO_ADDRESS) as `0x${string}`,
       startBlock: Number(process.env.DEPLOYMENT_BLOCK_CLAIMBOND ?? "0"),
     },
   },

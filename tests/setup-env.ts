@@ -22,7 +22,7 @@ process.env.USDC = "0x63D340AE7229BB464bC801f225651341ebcD3693";
 // Oracle V2 signer config (added by oracle-signer-service sprint).
 // Tests don't actually call the oracle — these placeholder values just
 // satisfy the zod env schema in `src/utils/config.ts:25-30`.
-process.env.LUMINA_ORACLE_V2 = "0x8cAbC4645a3981FF59d39328f9F65FdFD19Bd194";
+process.env.LUMINA_ORACLE_V2 = "0x0000000000000000000000000000000000000000";
 process.env.ORACLE_PRIVATE_KEY =
   "0x0000000000000000000000000000000000000000000000000000000000000002";
 process.env.BTC_PRICE_FEED = "0x2aDC8718F0b7Efb18a07aBc7595F1364730bb99E";
