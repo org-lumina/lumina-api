@@ -6,12 +6,20 @@ import { loadConfig } from "./config";
  * Sprint L — Helper to build USDC contract handles bound to either the
  * read-only provider or the relayer signer.
  *
- * The repo already exposes a read-only `usdc` handle in `utils/ethers.ts`,
- * but the faucet route needs a signing handle to call `transfer`. We
- * centralise the artifact import here so both surfaces stay in sync.
+ * Two surfaces:
  *
- * Address: `loadConfig().USDC` (mock SET A on Sepolia per ADR-010 —
- * `0x63D340AE7229BB464bC801f225651341ebcD3693`).
+ * 1. `getUsdcContract(runner)` — the protocol's canonical USDC (the address
+ *    in `/health.contracts.usdc`). On Base Sepolia this is the Circle
+ *    bridged USDC at `0x036CbD53842c5426634e7929541eC2318f3dCF7e` and is
+ *    NOT mintable. Used by `services/policies.ts` etc. for premium pulls.
+ *
+ * 2. `getMockUsdcContract(runner)` — the permissionless mintable mock USDC
+ *    used by the faucet (`/api/v1/faucet/claim`). Address comes from
+ *    `MOCK_USDC_ADDRESS` (default `0xD944d8e5D8329994D83950872Ec210891d3Ab6AE`).
+ *    The faucet calls `mint(to, amount)` on this contract — anyone may call
+ *    `mint`, so we don't need to pre-fund the relayer with USDC.
+ *
+ * Both contracts use the same ABI shape (ERC-20 + a permissionless `mint`).
  */
 
 interface Artifact {
@@ -22,4 +30,8 @@ const cfg = loadConfig();
 
 export function getUsdcContract(runner: ContractRunner): Contract {
   return new Contract(cfg.USDC, (UsdcArtifact as Artifact).abi as never, runner);
+}
+
+export function getMockUsdcContract(runner: ContractRunner): Contract {
+  return new Contract(cfg.MOCK_USDC_ADDRESS, (UsdcArtifact as Artifact).abi as never, runner);
 }
