@@ -28,6 +28,21 @@ const ConfigSchema = z.object({
   COVER_ROUTER: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
   MARKETPLACE: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
   USDC: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  // [Sprint USDC Mock — Phase 5] Free-mintable mock USDC used by the faucet.
+  // The protocol's canonical premium token (`USDC`) is the on-chain Circle
+  // address (non-mintable), so the faucet uses a separate permissionless
+  // MockUSDC to fund agents + founder for testnet usage. Defaults to the
+  // deployed mock on Base Sepolia; override via env when redeployed.
+  MOCK_USDC_ADDRESS: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{40}$/)
+    .default("0xD944d8e5D8329994D83950872Ec210891d3Ab6AE"),
+  // Amount minted per faucet claim, in 6-dec USDC base units.
+  // Default: 10,000 mUSDC (`10_000 * 1e6`).
+  FAUCET_USDC_AMOUNT: z
+    .string()
+    .regex(/^\d+$/)
+    .default("10000000000"),
   LUMINA_ORACLE_V2: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
   ORACLE_PRIVATE_KEY: z
     .string()
