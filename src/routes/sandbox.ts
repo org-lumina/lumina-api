@@ -26,6 +26,44 @@ const SANDBOX_RATE_LIMIT = rateLimit({
 
 sandboxRouter.use(SANDBOX_RATE_LIMIT);
 
+// Red-Team fix F-20 (CVSS 5.3, sandbox gas-drain DoS). The per-IP limiter is
+// bypassable with a multi-IP / proxy pool, and every /try mints a REAL on-chain
+// policy from the single sandbox wallet — draining its Base-Sepolia ETH. Two
+// extra, IP-independent guards:
+//   1. SANDBOX_MAX_COVER_USDC — hard ceiling on coverage ($50), clamps whatever
+//      the config requests so a misconfig can't inflate per-mint spend.
+//   2. SANDBOX_DAILY_CAP_USDC — global cumulative mint budget per UTC day,
+//      independent of source IP. Resets at the UTC day boundary. (In-memory:
+//      sufficient for the single Railway instance; move to Redis if scaled out.)
+// NOTE (red-team F-20): the sprint brief requested a $50 ceiling, but
+// CoverRouterV2 reverts `InvalidCoverage` below $100 (on-chain minimum). A $50
+// sandbox cover would make EVERY /try revert. The ceiling is therefore pinned
+// to the on-chain floor ($100); the meaningful anti-drain control is the global
+// daily cap below. Lowering to $50 would require also lowering the on-chain
+// minimum coverage — out of scope for an API-only fix; flagged to the founder.
+const SANDBOX_MAX_COVER_USDC = 100_000_000n; // $100 (6 decimals) — on-chain floor
+const SANDBOX_DAILY_CAP_USDC = 5_000_000_000n; // $5,000 (6 decimals)
+
+const dailyBudget: { day: string; spentUsdc: bigint } = { day: "", spentUsdc: 0n };
+
+function utcDay(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Reserve `amount` against the global daily budget. Returns false if it would exceed the cap. */
+function tryReserveDailyBudget(amount: bigint): boolean {
+  const today = utcDay();
+  if (dailyBudget.day !== today) {
+    dailyBudget.day = today;
+    dailyBudget.spentUsdc = 0n;
+  }
+  if (dailyBudget.spentUsdc + amount > SANDBOX_DAILY_CAP_USDC) {
+    return false;
+  }
+  dailyBudget.spentUsdc += amount;
+  return true;
+}
+
 const ProductIdSchema = z
   .string()
   .regex(/^0x[0-9a-fA-F]{64}$/, "productId must be bytes32 hex")
@@ -72,6 +110,12 @@ sandboxRouter.get("/info", (_req, res, next) => {
       defaultProductId: DEFAULT_PRODUCT_ID,
       defaultProductName: DEFAULT_PRODUCT_NAME,
       rateLimit: { perIp: 10, windowSeconds: 3600 },
+      // F-20: IP-independent global guards.
+      limits: {
+        maxCoverageUsdc: SANDBOX_MAX_COVER_USDC.toString(),
+        dailyCapUsdc: SANDBOX_DAILY_CAP_USDC.toString(),
+        dailySpentUsdc: (dailyBudget.day === utcDay() ? dailyBudget.spentUsdc : 0n).toString(),
+      },
       docs: "https://docs.lumina-org.com/agents/products-and-assets",
     });
   } catch (e) {
@@ -135,12 +179,34 @@ sandboxRouter.post("/try", async (req, res, next) => {
     }
     const asset = ethers.encodeBytes32String(assetSymbol);
 
-    const receipt = await purchaseViaRelayer({
-      productId,
-      coverageAmount: BigInt(cfg.SANDBOX_COVER_USDC),
-      asset,
-      buyer: cfg.SANDBOX_WALLET,
-    });
+    // F-20: clamp coverage to the $50 ceiling, then reserve against the global
+    // daily budget BEFORE spending any on-chain gas/funds.
+    let coverageAmount = BigInt(cfg.SANDBOX_COVER_USDC);
+    if (coverageAmount > SANDBOX_MAX_COVER_USDC) {
+      coverageAmount = SANDBOX_MAX_COVER_USDC;
+    }
+    if (!tryReserveDailyBudget(coverageAmount)) {
+      throw new HttpError(
+        429,
+        "Sandbox daily global budget exhausted. Try again after 00:00 UTC.",
+        "sandbox_daily_cap"
+      );
+    }
+
+    let receipt;
+    try {
+      receipt = await purchaseViaRelayer({
+        productId,
+        coverageAmount,
+        asset,
+        buyer: cfg.SANDBOX_WALLET,
+      });
+    } catch (e) {
+      // Refund the reservation if the mint failed so a reverting product can't
+      // silently burn down the daily budget.
+      dailyBudget.spentUsdc -= coverageAmount;
+      throw e;
+    }
 
     res.status(201).json({
       ok: true,
