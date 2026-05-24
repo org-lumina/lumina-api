@@ -166,9 +166,22 @@ export async function getPolicy(productId: string, policyId: bigint): Promise<Po
   if (buyer === "0x0000000000000000000000000000000000000000") return undefined;
 
   // Parallel reads of secondary fields to keep latency flat.
+  //
+  // [V5.3 cleanup] `policyPriceSnapshot` was removed from PolicyManagerV2 in a
+  // post-V5.1 upgrade and the selector is no longer on the live proxy. Wrap
+  // the call so a missing selector returns `0n` instead of letting the
+  // ethers revert escape as a 500. When the selector is re-added (or another
+  // upgrade reinstates the snapshot semantics) the read transparently works
+  // again without code changes.
   const [productActiveRaw, priceSnapshotRaw, shieldInfo] = await Promise.all([
     policyManager.productActive(productId) as Promise<boolean>,
-    policyManager.policyPriceSnapshot(productId, policyId) as Promise<bigint>,
+    (async () => {
+      try {
+        return (await policyManager.policyPriceSnapshot(productId, policyId)) as bigint;
+      } catch {
+        return 0n;
+      }
+    })(),
     // Shield is per-product. `r[1]` is the shield address from the record.
     (async () => {
       try {

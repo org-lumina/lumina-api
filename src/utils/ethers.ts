@@ -74,9 +74,23 @@ export const coverRouterRelayer = withSigner(cfg.COVER_ROUTER, CoverRouterArtifa
  * by `CoverRouterV2.globalPauseRegistry()`. Returns `undefined` when the
  * registry is unset (`address(0)`), in which case the protocol-wide pause
  * check is a no-op (matches the `whenNotPaused` modifier semantics).
+ *
+ * Resilience note: the `globalPauseRegistry()` selector was removed from
+ * `CoverRouterV2` in a post-V5.3 cleanup upgrade. Calls against the live
+ * proxy now revert with "execution reverted" (selector not present in the
+ * implementation bytecode). The try/catch keeps the API responsive — when
+ * the selector is missing we treat the registry as unset (returns
+ * `undefined`) instead of letting the revert escape and surface as a 500.
+ * If a future upgrade re-introduces the selector the wrapper transparently
+ * works again without code changes.
  */
 export async function getGlobalPauseRegistry(): Promise<Contract | undefined> {
-  const addr: string = await coverRouter.globalPauseRegistry();
+  let addr: string;
+  try {
+    addr = (await coverRouter.globalPauseRegistry()) as string;
+  } catch {
+    return undefined;
+  }
   if (!addr || addr === "0x0000000000000000000000000000000000000000") return undefined;
   return new Contract(addr, (GlobalPauseRegistryArtifact as Artifact).abi as never, provider);
 }
