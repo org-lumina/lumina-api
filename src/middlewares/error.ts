@@ -31,6 +31,18 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     res.status(413).json({ error: "payload_too_large", message: "Request body exceeds 32 KB limit" });
     return;
   }
+  // Red-Team fix F-30 (LOW): malformed JSON makes express.json()/body-parser
+  // throw a SyntaxError (type "entity.parse.failed"). That is a client error and
+  // must be a 400, not the generic 500 that was masking it in error telemetry.
+  if (
+    err &&
+    typeof err === "object" &&
+    (("type" in err && err.type === "entity.parse.failed") ||
+      (err instanceof SyntaxError && "body" in err))
+  ) {
+    res.status(400).json({ error: "invalid_json", message: "Request body is not valid JSON" });
+    return;
+  }
   logger.error({ err, path: req.path, method: req.method }, "unhandled error");
   res.status(500).json({ error: "internal_error", message: "An unexpected error occurred" });
 };
