@@ -7,6 +7,7 @@ import { publicIpLimiter } from "../middlewares/rateLimit";
 import { HttpError } from "../middlewares/error";
 import { logger } from "../utils/logger";
 import { loadConfig } from "../utils/config";
+import { withLock, RELAYER_TX_LOCK_KEY } from "../utils/lock";
 import {
   lastClaimByWallet,
   lastClaimByIp,
@@ -62,37 +63,17 @@ const ClaimBodySchema = z.object({
 //   neither has committed `insertClaim` yet), and both fire transferences —
 //   draining the relayer twice for the same wallet.
 //
+// [MR-H02] The key is now the SHARED `RELAYER_TX_LOCK_KEY` (utils/lock.ts) —
+// not a faucet-specific key — so the faucet and the policy-purchase path
+// (`purchaseViaRelayer`) serialise against each other. Both sign & broadcast
+// from the SAME relayer wallet, hence share one pending-nonce sequence; a
+// faucet-private key would let a concurrent purchase collide on that nonce.
+//
 // Single global lock is fine for the testnet load (50 claims/day cap = ~2/h),
 // adds zero practical latency, and eliminates the race entirely. If we
 // ever scale to a multi-instance deploy, replace with either a SQLite
 // IMMEDIATE-locked transaction wrapping check+insert or an external locker
 // (Redis SETNX). Single-instance scope is documented in tracking/sprint-l-faucet.md.
-const inflightLocks = new Map<string, Promise<void>>();
-const GLOBAL_LOCK_KEY = "faucet-claim-global";
-
-async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  while (inflightLocks.has(key)) {
-    // Wait the prior caller's promise out, then re-loop in case yet another
-    // request grabbed the lock in the meantime.
-    try {
-      await inflightLocks.get(key);
-    } catch {
-      // Prior holder may have rejected — that's their problem; we still
-      // want our turn at the lock.
-    }
-  }
-  let release!: () => void;
-  const p = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  inflightLocks.set(key, p);
-  try {
-    return await fn();
-  } finally {
-    inflightLocks.delete(key);
-    release();
-  }
-}
 
 faucetRouter.post("/faucet/claim", publicIpLimiter, async (req, res, next) => {
   try {
@@ -111,7 +92,7 @@ faucetRouter.post("/faucet/claim", publicIpLimiter, async (req, res, next) => {
     // [Audit HIGH-1] Global lock (see GLOBAL_LOCK_KEY comment above): a
     // per-(wallet|ip) lock would let "wallet W from IP X" + "wallet W from IP Y"
     // race past the rate-limit check. Global serialisation closes the gap.
-    await withLock(GLOBAL_LOCK_KEY, async () => {
+    await withLock(RELAYER_TX_LOCK_KEY, async () => {
       // ── Cap + rate-limit checks (all read inside the lock) ──
       const now = Math.floor(Date.now() / 1000);
 

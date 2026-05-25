@@ -1,4 +1,4 @@
-import { Contract, FallbackProvider, JsonRpcProvider, Network, Wallet } from "ethers";
+import { Contract, FallbackProvider, JsonRpcProvider, Network, NonceManager, Wallet } from "ethers";
 import { loadConfig } from "./config";
 
 import CoverRouterArtifact from "../../abis/CoverRouterV2.json";
@@ -47,14 +47,30 @@ export const provider: FallbackProvider = new FallbackProvider(fallbackProviders
 // `relayer` signs txs. ethers v6 lets a Wallet attach to either a JsonRpcProvider
 // or a FallbackProvider; for the latter, broadcasts go through the elected
 // primary, while reads can fan out across the fallbacks.
+//
+// We keep the bare `Wallet` exported as `relayer` because callers read its
+// synchronous `.address` (health/faucet/policies pre-flights) and the faucet
+// calls `relayer.sendTransaction(...)` directly — `NonceManager` exposes
+// `getAddress()` (async) but no sync `.address`, so swapping it here would
+// break those sites.
 export const relayer = new Wallet(cfg.RELAYER_PRIVATE_KEY, provider);
+
+// [MR-H02] Belt-and-suspenders: wrap the SAME wallet in a NonceManager and use
+// it as the runner for tx-sending contract handles. NonceManager tracks the
+// next nonce locally so back-to-back sends don't both fetch the same pending
+// nonce from the RPC. The `withLock(RELAYER_TX_LOCK_KEY, …)` around every
+// send (faucet + purchase) is the authoritative serialiser — it guarantees
+// the NonceManager and the bare Wallet never have concurrent in-flight sends,
+// so their nonce views can't diverge. The lock alone is sufficient; the
+// NonceManager is a defence-in-depth layer against any future un-locked send.
+export const relayerNonceManaged = new NonceManager(relayer);
 
 function readonly(address: string, artifact: Artifact): Contract {
   return new Contract(address, artifact.abi as never, provider);
 }
 
 function withSigner(address: string, artifact: Artifact): Contract {
-  return new Contract(address, artifact.abi as never, relayer);
+  return new Contract(address, artifact.abi as never, relayerNonceManaged);
 }
 
 // Read-only handles (use for view calls)

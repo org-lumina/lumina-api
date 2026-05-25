@@ -13,6 +13,7 @@ import {
 import { getProductName } from "../utils/productNames";
 import { logger } from "../utils/logger";
 import { HttpError } from "../middlewares/error";
+import { withLock, RELAYER_TX_LOCK_KEY } from "../utils/lock";
 
 /**
  * On-chain CoverRouterV2 enforces `coverageAmount >= 100e6` ($100 USDC).
@@ -371,30 +372,43 @@ export async function purchaseViaRelayer(input: PurchaseInput): Promise<Purchase
     );
   }
 
-  let tx;
-  try {
-    tx = await coverRouterRelayer.purchasePolicyFor(
-      input.productId,
-      input.coverageAmount,
-      input.asset,
-      input.buyer
-    );
-  } catch (e) {
-    // [10x10 fix C-1] Decode known custom-error selectors so the caller gets a
-    // human-readable message instead of "execution reverted (unknown custom error)".
-    const decoded = decodeRevertMessage(e);
-    const raw = e instanceof Error ? e.message : String(e);
-    throw new HttpError(
-      400,
-      decoded ? `Transaction submission failed: ${decoded}` : `Transaction submission failed: ${raw}`,
-      decoded ? "tx_submit_failed_decoded" : "tx_submit_failed"
-    );
-  }
+  // [MR-H02] The relayer wallet signs from a single pending-nonce sequence
+  // shared with the faucet path (utils/ethers.ts → `relayer`). Two concurrent
+  // purchases (or a purchase racing a faucet claim) would otherwise read the
+  // same pending nonce and one tx would be dropped/replaced → DoS. Serialise
+  // the sign+broadcast+confirm window on the SHARED `RELAYER_TX_LOCK_KEY` so
+  // the nonce advances strictly. All pre-flights above are read-only and stay
+  // OUTSIDE the lock to keep latency low; only the nonce-consuming critical
+  // section is serialised. (The wallet is also wrapped in a NonceManager in
+  // utils/ethers.ts as belt-and-suspenders, but the lock is what fully
+  // serialises across both code paths.)
+  const { tx, receipt } = await withLock(RELAYER_TX_LOCK_KEY, async () => {
+    let sentTx;
+    try {
+      sentTx = await coverRouterRelayer.purchasePolicyFor(
+        input.productId,
+        input.coverageAmount,
+        input.asset,
+        input.buyer
+      );
+    } catch (e) {
+      // [10x10 fix C-1] Decode known custom-error selectors so the caller gets a
+      // human-readable message instead of "execution reverted (unknown custom error)".
+      const decoded = decodeRevertMessage(e);
+      const raw = e instanceof Error ? e.message : String(e);
+      throw new HttpError(
+        400,
+        decoded ? `Transaction submission failed: ${decoded}` : `Transaction submission failed: ${raw}`,
+        decoded ? "tx_submit_failed_decoded" : "tx_submit_failed"
+      );
+    }
 
-  const receipt = await tx.wait();
-  if (!receipt || receipt.status !== 1) {
-    throw new HttpError(502, `Transaction reverted: ${tx.hash}`, "tx_reverted");
-  }
+    const sentReceipt = await sentTx.wait();
+    if (!sentReceipt || sentReceipt.status !== 1) {
+      throw new HttpError(502, `Transaction reverted: ${sentTx.hash}`, "tx_reverted");
+    }
+    return { tx: sentTx, receipt: sentReceipt };
+  });
 
   // Find PolicyCreated event in logs to get policyId + premium
   let policyId = "0";
