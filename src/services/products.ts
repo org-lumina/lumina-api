@@ -112,6 +112,13 @@ export async function listProducts(): Promise<ProductDto[]> {
     //                       uint256 marginBps, uint32 durationSeconds, bool active)
     const shield: string = await policyManager.productShield(productId);
     const name = getCanonicalName(productId) ?? null;
+    // [ux-devex-final] Only surface canonically-registered products in the public
+    // catalog. Any on-chain product without a known canonical name (e.g. an E2E
+    // test/mock product, or a shield deployed before its preimage is appended to
+    // productNames.ts) is intentionally hidden here so agents/users never see a
+    // nameless "Unknown product" they could mistakenly purchase. Such ids remain
+    // directly queryable via GET /products/:productId for debugging.
+    if (name === null) continue;
     const meta = metaFor(name);
     out.push({
       productId,

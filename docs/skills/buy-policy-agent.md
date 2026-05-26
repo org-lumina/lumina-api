@@ -9,14 +9,15 @@
 | Symbol         | coveredAsset | paymentAsset | What it insures                              |
 |----------------|--------------|--------------|----------------------------------------------|
 | FLASHBTC1H-001 | BTC          | USDC         | BTC rapid price crashes within 1h            |
-| FLASHBTC4H-001 | BTC          | USDC         | BTC rapid price crashes within 4h            |
 | FLASHBTC24-001 | BTC          | USDC         | BTC rapid price crashes within 24h           |
 | FLASHBTC48-001 | BTC          | USDC         | BTC rapid price crashes within 48h           |
 | FLASHETH1H-001 | ETH          | USDC         | ETH rapid price crashes within 1h            |
 | FLASHETH24-001 | ETH          | USDC         | ETH rapid price crashes within 24h           |
 | FLASHETH48-001 | ETH          | USDC         | ETH rapid price crashes within 48h           |
-| MICRODEPEG-001 | USDT         | USDC         | USDT losing its peg to $1.00                 |
-| RATESHOCK-001  | USDC         | USDC         | USDC borrow rate shocks on Aave V3           |
+
+All 6 products use `payoutRatioBps = 8000` (80% payout on trigger, 20% deductible).
+
+> ⏸️ **`RATESHOCK-001`** exists on-chain but is currently **paused (`active: false`) — not purchasable.** `FLASHBTC4H-001` and `MICRODEPEG-001` are **retired / not deployed** — do not attempt to buy them.
 
 **For**: AI Agents · **Type**: write · **Difficulty**: ⭐⭐
 
@@ -36,28 +37,27 @@ product label) and auto-resolve both the bytes32 `productId` AND the per-shield
 const policy = await lumina.policies.purchase({
   productName: 'FLASHBTC1H-001',   // SDK derives productId hash + asset='BTC'
   buyer: '0xYourWalletAddress',
-  coverageAmount: '100000000',     // $100 in 6-dec USDC (on-chain minimum)
+  coverageAmount: '100000000',      // $100 in 6-dec USDC (on-chain minimum)
 })
 ```
 
 ## ⚠️ The asset is per-shield, not a global "USDC"
 
 Every shield validates `params.asset` against a **hardcoded literal**.
-Hardcoding `asset: 'USDC'` for every product reverts 7-of-9 with
-`InvalidAsset(bytes32("USDC"))`. The payment token is always USDC; the asset
-is the *what-it-covers* tag.
+Hardcoding `asset: 'USDC'` for the flash shields reverts with
+`InvalidAsset(bytes32("USDC"))` (FlashBTC* expect `BTC`, FlashETH* expect
+`ETH`). The payment token is always USDC; the asset is the *what-it-covers* tag.
 
 | Name (keccak input) | productId (bytes32) | Expected `asset` | Duration |
 |---|---|---|---|
 | `FLASHBTC1H-001` | `0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd` | `BTC` | 1 h |
-| `FLASHBTC4H-001` | `0x0c8e45caa686271a71fb299ac5faab90520dbbd629aa8d4ad18e87d61c57a03d` | `BTC` | 4 h |
 | `FLASHBTC24-001` | `0xdc5bcc7d6e2e9ca89d46d4f6672db80985d5e86509243dcca44a4e87d871a7b9` | `BTC` | 24 h |
 | `FLASHBTC48-001` | `0xb630608784616003f974941232dd618003e5a182176cc14010db95cda2ab1ee8` | `BTC` | 48 h |
 | `FLASHETH1H-001` | `0x6cedbccfc3dc131aec7bdd9a9761ac0a8e665daa87763328ffca700f9b678915` | `ETH` | 1 h |
 | `FLASHETH24-001` | `0xcc03aef924fc23ad01e6391af37bcfdb9ad40cce7c76218e51be62c38167f240` | `ETH` | 24 h |
 | `FLASHETH48-001` | `0x89a37df7cf246013d58a6b121e57b1e6417cea854b354183025ed0b41663712d` | `ETH` | 48 h |
-| `MICRODEPEG-001` | `0x317c1a64236e5c2d71cc0144e2e1ec3c5372f3098bf060dee1fe9cadb8943640` | `USDT` | 7 d |
-| `RATESHOCK-001` | `0x8ae1e4140e1713abfdbbba9bc4cbf4afdc0d60e3f98687bd02d6dad5a60a347f` | `USDC` | 7 d |
+
+> ⏸️ `RATESHOCK-001` (`0x8ae1e4140e1713abfdbbba9bc4cbf4afdc0d60e3f98687bd02d6dad5a60a347f`, asset `USDC`) exists on-chain but is **paused (`active: false`) — purchases revert.** `FLASHBTC4H-001` and `MICRODEPEG-001` are **retired / not deployed.**
 
 Full reference + failure modes: <https://docs.lumina-org.com/agents/products-and-assets>.
 
@@ -90,9 +90,9 @@ INSTRUCTIONS:
        "coverageAmount": "uint string in USDC base units (6 dec)",
        "buyer":          "0x..."  (20-byte address — wallet that consents to pay premium)
      }
-   The asset literal is per-shield (BTC for FlashBTC, ETH for FlashETH,
-   USDT for MicroDepeg, USDC for RateShock). DO NOT hardcode `"asset": "USDC"`
-   for every product — that reverts 7-of-9 with InvalidAsset(bytes32("USDC")).
+   The asset literal is per-shield (BTC for FlashBTC, ETH for FlashETH).
+   DO NOT hardcode `"asset": "USDC"` for the flash shields — that reverts
+   with InvalidAsset(bytes32("USDC")).
    When you omit `asset`, the API resolves the correct literal from the registry.
    Optional header: Idempotency-Key: <uuidv4> (strongly recommended for retries).
 2. On 201 response, persist the returned policyId for tracking
@@ -122,7 +122,7 @@ curl -X POST https://lumina-api-production-ac85.up.railway.app/api/v1/policies \
 ```
 
 > `coverageAmount: "100000000"` = $100 (USDC has 6 decimals → multiply USD by 1_000_000). **Minimum $100 enforced on-chain** by `CoverRouterV2`; anything below reverts with `coverage_below_minimum`.
-> `productName` is the canonical product label — the API derives the bytes32 `productId` hash AND the per-shield `asset` literal from it (FlashBTC → `BTC`, FlashETH → `ETH`, MicroDepeg → `USDT`, RateShock → `USDC`).
+> `productName` is the canonical product label — the API derives the bytes32 `productId` hash AND the per-shield `asset` literal from it (FlashBTC → `BTC`, FlashETH → `ETH`).
 > `buyer` MUST be the wallet that consents to pay the premium — the relayer pays gas, the buyer's wallet provides the USDC.
 
 ### TypeScript (ethers v6, recommended)
@@ -139,7 +139,7 @@ const res = await fetch('https://lumina-api-production-ac85.up.railway.app/api/v
   },
   body: JSON.stringify({
     productName: 'FLASHBTC24-001',  // API resolves productId hash + asset='BTC'
-    coverageAmount: '100000000',    // $100 in USDC base units (on-chain minimum)
+    coverageAmount: '100000000',     // $100 in USDC base units (on-chain minimum)
     buyer: '0xYourWalletAddress',
   }),
 })
@@ -166,7 +166,7 @@ console.log('policyId:', policy.policyId)
 
 ### viem variant of the asset bytes32 (ONLY if you must override the auto-resolved literal)
 
-The API resolves `asset` for you when `productName` is supplied. Build one yourself only when intentionally bypassing the registry. Pass the **covered asset** (BTC/ETH/USDT/USDC), NOT the premium token:
+The API resolves `asset` for you when `productName` is supplied. Build one yourself only when intentionally bypassing the registry. Pass the **covered asset** (BTC/ETH), NOT the premium token:
 
 ```typescript
 import { padHex, toHex } from 'viem'
@@ -174,10 +174,6 @@ import { padHex, toHex } from 'viem'
 const BTC_BYTES32  = padHex(toHex('BTC'),  { size: 32, dir: 'right' })  // 0x4254430000…
 // FlashETH* → 'ETH'
 const ETH_BYTES32  = padHex(toHex('ETH'),  { size: 32, dir: 'right' })  // 0x4554480000…
-// MicroDepeg → 'USDT'
-const USDT_BYTES32 = padHex(toHex('USDT'), { size: 32, dir: 'right' })  // 0x5553445400…
-// RateShock → 'USDC' (the only product whose covered asset IS USDC)
-const USDC_BYTES32 = padHex(toHex('USDC'), { size: 32, dir: 'right' })  // 0x5553444300…
 ```
 
 ### Python (requests)
@@ -208,7 +204,7 @@ data = res.json()
   "productName": "string — canonical name (e.g. \"FLASHBTC24-001\"). Optional alias for productId; the API derives the bytes32 hash and the asset literal from it.",
   "productId": "string — bytes32 hex (regex /^0x[0-9a-fA-F]{64}$/), keccak256 of the canonical product name. Required when productName is omitted.",
   "coverageAmount": "string — positive integer in USDC base units (6 decimals → multiply USD by 1_000_000). String to avoid JS number overflow.",
-  "asset": "string — bytes32 hex. OPTIONAL since 2026-05-06: if omitted, the API auto-resolves the per-shield literal from the registry (BTC/ETH/USDT/USDC). Override only when intentional.",
+  "asset": "string — bytes32 hex. OPTIONAL since 2026-05-06: if omitted, the API auto-resolves the per-shield literal from the registry (BTC for FlashBTC*, ETH for FlashETH*). Override only when intentional.",
   "buyer": "string — 0x-prefixed 20-byte address; the wallet that holds USDC and consents to pay the premium."
 }
 ```
@@ -221,8 +217,8 @@ the same response without double-spending.
 
 - `productName` is the **preferred input**. The API derives the keccak256 productId AND the per-shield asset literal from it; you cannot accidentally pair `FLASHBTC1H-001` with `USDC`.
 - `productId` is the **bytes32 keccak256 of the canonical product name** — see the table above. Required only when `productName` is absent.
-- `coverageAmount` is in **USDC base units** (USDC has 6 decimals). **Minimum: $100 = `"100000000"`** (enforced on-chain by `CoverRouterV2`). For $1,000 send `"1000000000"`. Always pass as a string to preserve precision in JSON.
-- `asset` is **optional**. When omitted the API resolves it from the registry (FlashBTC* → `BTC`, FlashETH* → `ETH`, MicroDepeg → `USDT`, RateShock → `USDC`). To override, pass a bytes32 hex; sending the wrong literal reverts with `InvalidAsset(bytes32)`.
+- `coverageAmount` is in **USDC base units** (USDC has 6 decimals). **Minimum: $100 = `"100000000"`** (enforced on-chain by `CoverRouterV2`: `coverageAmount >= 100e6`, else `InvalidCoverage`). For $1,000 send `"1000000000"`. Always pass as a string to preserve precision in JSON.
+- `asset` is **optional**. When omitted the API resolves it from the registry (FlashBTC* → `BTC`, FlashETH* → `ETH`). To override, pass a bytes32 hex; sending the wrong literal reverts with `InvalidAsset(bytes32)`.
 - `buyer` is the **wallet that consents to pay the premium**. The relayer pays gas; this wallet provides the USDC.
 
 ## Response schema (201)

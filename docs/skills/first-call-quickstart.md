@@ -9,14 +9,15 @@
 | Symbol         | coveredAsset | paymentAsset | What it insures                              |
 |----------------|--------------|--------------|----------------------------------------------|
 | FLASHBTC1H-001 | BTC          | USDC         | BTC rapid price crashes within 1h            |
-| FLASHBTC4H-001 | BTC          | USDC         | BTC rapid price crashes within 4h            |
 | FLASHBTC24-001 | BTC          | USDC         | BTC rapid price crashes within 24h           |
 | FLASHBTC48-001 | BTC          | USDC         | BTC rapid price crashes within 48h           |
 | FLASHETH1H-001 | ETH          | USDC         | ETH rapid price crashes within 1h            |
 | FLASHETH24-001 | ETH          | USDC         | ETH rapid price crashes within 24h           |
 | FLASHETH48-001 | ETH          | USDC         | ETH rapid price crashes within 48h           |
-| MICRODEPEG-001 | USDT         | USDC         | USDT losing its peg to $1.00                 |
-| RATESHOCK-001  | USDC         | USDC         | USDC borrow rate shocks on Aave V3           |
+
+All 6 products use `payoutRatioBps = 8000` (80% payout on trigger, 20% deductible).
+
+> ⏸️ **`RATESHOCK-001`** exists on-chain but is currently **paused (`active: false`) — not purchasable.** `FLASHBTC4H-001` and `MICRODEPEG-001` are **retired / not deployed** — do not attempt to buy them.
 
 ## 1. Discover the protocol
 ```bash
@@ -32,15 +33,15 @@ Connect wallet → generate key → save the `lk_…` value as `LUMINA_API_KEY`.
 ```bash
 curl https://lumina-api-production-ac85.up.railway.app/products
 ```
-Each product has a canonical `name` (e.g. `FLASHBTC1H-001`, `MICRODEPEG-001`,
-`RATESHOCK-001`). Pass that name to `/policies` and the API will resolve both
+Each product has a canonical `name` (e.g. `FLASHBTC1H-001`, `FLASHETH24-001`).
+Pass that name to `/policies` and the API will resolve both
 the bytes32 `productId` AND the per-shield `asset` literal for you. See the
 [products-and-assets reference](https://docs.lumina-org.com/agents/products-and-assets)
 for the full table.
 
 ## 4. Get a quote (no auth needed)
 ```bash
-curl "https://lumina-api-production-ac85.up.railway.app/products/FLASHBTC1H-001/quote?coverageAmount=100000000"
+curl "https://lumina-api-production-ac85.up.railway.app/products/0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd/quote?coverageAmount=100000000"
 ```
 
 ## 5. Buy a $100 policy
@@ -54,12 +55,12 @@ curl -X POST -H "x-api-key: $LUMINA_API_KEY" -H "Content-Type: application/json"
   https://lumina-api-production-ac85.up.railway.app/api/v1/policies
 ```
 
-`coverageAmount` is in USDC base units (×10^6); **minimum $100 = `"100000000"`** (enforced on-chain). `productName` is the canonical
+`coverageAmount` is in USDC base units (×10^6); **minimum $100 = `"100000000"`** (enforced on-chain by `CoverRouterV2`; quotes price any amount but a purchase below $100 reverts). `productName` is the canonical
 product label — the API derives the `productId` hash AND the per-shield
 `asset` literal from it. `buyer` must hold and have approved enough USDC to
-cover the premium. Hardcoding `asset: "USDC"` for every shield reverts 7-of-9
-with `InvalidAsset(bytes32("USDC"))` — only `RATESHOCK-001` actually expects
-the `USDC` literal.
+cover the premium. Each shield validates a hardcoded covered-asset literal
+(FlashBTC* → `BTC`, FlashETH* → `ETH`); hardcoding `asset: "USDC"` reverts
+with `InvalidAsset(bytes32("USDC"))`.
 
 ## 6. List your policies
 ```bash

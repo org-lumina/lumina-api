@@ -1,4 +1,4 @@
-# Skill: Browse the 9 Shields catalog
+# Skill: Browse the Shields catalog
 
 > 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base Sepolia 84532) but verify before use.
 
@@ -9,14 +9,15 @@
 | Symbol         | coveredAsset | paymentAsset | What it insures                              |
 |----------------|--------------|--------------|----------------------------------------------|
 | FLASHBTC1H-001 | BTC          | USDC         | BTC rapid price crashes within 1h            |
-| FLASHBTC4H-001 | BTC          | USDC         | BTC rapid price crashes within 4h            |
 | FLASHBTC24-001 | BTC          | USDC         | BTC rapid price crashes within 24h           |
 | FLASHBTC48-001 | BTC          | USDC         | BTC rapid price crashes within 48h           |
 | FLASHETH1H-001 | ETH          | USDC         | ETH rapid price crashes within 1h            |
 | FLASHETH24-001 | ETH          | USDC         | ETH rapid price crashes within 24h           |
 | FLASHETH48-001 | ETH          | USDC         | ETH rapid price crashes within 48h           |
-| MICRODEPEG-001 | USDT         | USDC         | USDT losing its peg to $1.00                 |
-| RATESHOCK-001  | USDC         | USDC         | USDC borrow rate shocks on Aave V3           |
+
+All 6 products use `payoutRatioBps = 8000` (80% payout on trigger, 20% deductible).
+
+> ⏸️ **`RATESHOCK-001`** exists on-chain but is currently **paused (`active: false`) — not purchasable.** `FLASHBTC4H-001` and `MICRODEPEG-001` are **retired / not deployed** — do not attempt to buy them.
 
 This skill works for both humans (web interface) and AI agents (API).
 
@@ -72,7 +73,7 @@ YOUR GOAL: Discover the available parametric insurance products.
 CONTEXT:
 - API base URL: https://lumina-api-production-ac85.up.railway.app
 - Authentication: x-api-key header (format lk_<64hex>)
-- 9 shields exist; productId is bytes32 keccak256 of the canonical name
+- 6 active flash shields exist (RATESHOCK-001 is paused); productId is bytes32 keccak256 of the canonical name
 
 INSTRUCTIONS:
 1. GET /products to list all active shields
