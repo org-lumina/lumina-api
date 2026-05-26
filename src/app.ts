@@ -4,6 +4,7 @@ import cors, { type CorsOptions } from "cors";
 import swaggerUi from "swagger-ui-express";
 import { healthRouter } from "./routes/health";
 import { productsRouter } from "./routes/products";
+import { statsRouter } from "./routes/stats";
 import { policiesPublicRouter, policiesAuthRouter } from "./routes/policies";
 import { redeemAuthRouter } from "./routes/redeem";
 import { bondsAuthRouter } from "./routes/bonds";
@@ -78,6 +79,9 @@ export function createApp(): Application {
   // backward-compat aliases that emit `X-Deprecated` so existing clients
   // keep working while new integrations adopt the unified namespace.
   app.use("/api/v1/products", publicIpLimiter, productsRouter);
+  // Aggregated INSTANT on-chain stats (price/reserve/capacity/supply/chain),
+  // cached 30s — powers the public landing's live Hero. Read-only, no auth.
+  app.use("/api/v1", publicIpLimiter, statsRouter);
   app.use("/api/v1/policies", publicIpLimiter, policiesPublicRouter);
   // Marketplace GETs are read-only views of on-chain-public state
   // (listings, completed trades, floor). Mount the public router BEFORE
