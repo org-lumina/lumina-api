@@ -19,6 +19,11 @@ export type BondStatusFilter = "active" | "matured" | "redeemed" | "all";
 const LOG_SCAN_WINDOW = 45_000;
 const LOG_SCAN_FALLBACK_LOOKBACK = 500_000;
 const LOG_SCAN_MAX_RETRIES = 3;
+// [perf] Windows were scanned strictly sequentially, so a ~500k-block range
+// (≈12 windows) × the retry/backoff cost dominated wallet-scoped queries. We now
+// run windows with bounded concurrency: same total getLogs calls, but issued in
+// parallel batches → ~Nx fewer serial round-trips. Bounded to avoid RPC throttling.
+const LOG_SCAN_CONCURRENCY = 6;
 
 /**
  * Resolve the lower bound for log scans. Honours an explicit
@@ -53,36 +58,41 @@ export async function paginatedQueryFilter(
   const out: Array<EventLog | Log> = [];
   if (toBlock < fromBlock) return out;
 
-  let from = fromBlock;
-  while (from <= toBlock) {
-    const to = Math.min(from + LOG_SCAN_WINDOW - 1, toBlock);
-    const t0 = Date.now();
+  // Build every [from,to] window up front.
+  const windows: Array<[number, number]> = [];
+  for (let f = fromBlock; f <= toBlock; f += LOG_SCAN_WINDOW) {
+    windows.push([f, Math.min(f + LOG_SCAN_WINDOW - 1, toBlock)]);
+  }
+
+  // Fetch a single window with the existing retry/backoff policy. A persistently
+  // failing window resolves to [] (partial result preferable to a 503).
+  const fetchWindow = async ([from, to]: [number, number]): Promise<Array<EventLog | Log>> => {
     let attempt = 0;
-    let logs: Array<EventLog | Log> | undefined;
     let lastErr: unknown;
     while (attempt < LOG_SCAN_MAX_RETRIES) {
       try {
-        logs = await contract.queryFilter(filter, from, to);
-        break;
+        const t0 = Date.now();
+        const logs = await contract.queryFilter(filter, from, to);
+        console.log(`[bonds] ${label} window [${from}, ${to}] -> ${logs.length} logs (${Date.now() - t0}ms)`);
+        return logs;
       } catch (err) {
         lastErr = err;
         attempt += 1;
         if (attempt >= LOG_SCAN_MAX_RETRIES) break;
-        const delayMs = 1000 * 2 ** (attempt - 1); // 1000, 2000, 4000
-        await new Promise((r) => setTimeout(r, delayMs));
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1))); // 1s/2s/4s
       }
     }
-    if (logs) {
-      out.push(...logs);
-      console.log(
-        `[bonds] ${label} window [${from}, ${to}] -> ${logs.length} logs (${Date.now() - t0}ms)`
-      );
-    } else {
-      console.warn(
-        `[bonds] ${label} window [${from}, ${to}] FAILED after ${LOG_SCAN_MAX_RETRIES} attempts, skipping. lastErr=${(lastErr as Error)?.message ?? String(lastErr)}`
-      );
-    }
-    from = to + 1;
+    console.warn(
+      `[bonds] ${label} window [${from}, ${to}] FAILED after ${LOG_SCAN_MAX_RETRIES} attempts, skipping. lastErr=${(lastErr as Error)?.message ?? String(lastErr)}`
+    );
+    return [];
+  };
+
+  // Run windows in bounded-concurrency batches.
+  for (let i = 0; i < windows.length; i += LOG_SCAN_CONCURRENCY) {
+    const batch = windows.slice(i, i + LOG_SCAN_CONCURRENCY);
+    const results = await Promise.all(batch.map(fetchWindow));
+    for (const r of results) out.push(...r);
   }
   return out;
 }
@@ -183,9 +193,11 @@ async function buildBondInfo(
   epochId: bigint,
   createdAt: string
 ): Promise<BondInfo | undefined> {
-  const balance: bigint = await claimBond.balanceOf(wallet, epochId);
-
-  const info = await claimBond.getEpochInfo(epochId);
+  // [perf] balanceOf + getEpochInfo are independent — fetch in parallel.
+  const [balance, info] = (await Promise.all([
+    claimBond.balanceOf(wallet, epochId),
+    claimBond.getEpochInfo(epochId),
+  ])) as [bigint, any];
   const exists = Boolean(info[0] ?? info.exists);
   if (!exists) return undefined;
   const maturity: bigint = info[1] ?? info.maturity;
