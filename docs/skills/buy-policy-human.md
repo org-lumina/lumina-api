@@ -9,14 +9,15 @@
 | Symbol         | coveredAsset | paymentAsset | What it insures                              |
 |----------------|--------------|--------------|----------------------------------------------|
 | FLASHBTC1H-001 | BTC          | USDC         | BTC rapid price crashes within 1h            |
-| FLASHBTC4H-001 | BTC          | USDC         | BTC rapid price crashes within 4h            |
 | FLASHBTC24-001 | BTC          | USDC         | BTC rapid price crashes within 24h           |
 | FLASHBTC48-001 | BTC          | USDC         | BTC rapid price crashes within 48h           |
 | FLASHETH1H-001 | ETH          | USDC         | ETH rapid price crashes within 1h            |
 | FLASHETH24-001 | ETH          | USDC         | ETH rapid price crashes within 24h           |
 | FLASHETH48-001 | ETH          | USDC         | ETH rapid price crashes within 48h           |
-| MICRODEPEG-001 | USDT         | USDC         | USDT losing its peg to $1.00                 |
-| RATESHOCK-001  | USDC         | USDC         | USDC borrow rate shocks on Aave V3           |
+
+All 6 products use `payoutRatioBps = 8000` (80% payout on trigger, 20% deductible).
+
+> ⏸️ **`RATESHOCK-001`** exists on-chain but is currently **paused (`active: false`) — not purchasable.** `FLASHBTC4H-001` and `MICRODEPEG-001` are **retired / not deployed** — do not attempt to buy them.
 
 **For**: Humans · **Difficulty**: ⭐⭐ · **Time**: ~2 minutes
 
@@ -67,7 +68,7 @@ Pay a USDC premium with your own wallet and receive a Lumina policy bound to you
 
 This skill calls `CoverRouterV2.purchasePolicy(bytes32 productId, uint256 coverageAmount, bytes32 asset)` directly from your wallet. `msg.sender` becomes the buyer; the premium routes to the TWAPBurner atomically inside the same tx.
 
-The `asset` parameter is the **covered asset** (NOT the premium token — premium is always USDC). Each shield validates against a hardcoded literal: FlashBTC* → `BTC`, FlashETH* → `ETH`, MicroDepeg → `USDT`, RateShock → `USDC`. The frontend passes `padHex(toHex(coveredAsset), { size: 32, dir: 'right' })` — e.g. for FlashBTC1h: `padHex(toHex('BTC'), { size: 32, dir: 'right' })`. Sending the wrong literal reverts with `InvalidAsset(bytes32)`.
+The `asset` parameter is the **covered asset** (NOT the premium token — premium is always USDC). Each shield validates against a hardcoded literal: FlashBTC* → `BTC`, FlashETH* → `ETH`. The frontend passes `padHex(toHex(coveredAsset), { size: 32, dir: 'right' })` — e.g. for FlashBTC1h: `padHex(toHex('BTC'), { size: 32, dir: 'right' })`. Sending the wrong literal reverts with `InvalidAsset(bytes32)`.
 
 Required pre-step: USDC `approve(CoverRouterV2, premium)` — see [approve-usdc](./approve-usdc.md). (Approval is always for USDC, even when buying a BTC/ETH/USDT shield, because the premium itself is USDC.)
 

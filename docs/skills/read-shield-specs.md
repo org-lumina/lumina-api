@@ -9,14 +9,15 @@
 | Symbol         | coveredAsset | paymentAsset | What it insures                              |
 |----------------|--------------|--------------|----------------------------------------------|
 | FLASHBTC1H-001 | BTC          | USDC         | BTC rapid price crashes within 1h            |
-| FLASHBTC4H-001 | BTC          | USDC         | BTC rapid price crashes within 4h            |
 | FLASHBTC24-001 | BTC          | USDC         | BTC rapid price crashes within 24h           |
 | FLASHBTC48-001 | BTC          | USDC         | BTC rapid price crashes within 48h           |
 | FLASHETH1H-001 | ETH          | USDC         | ETH rapid price crashes within 1h            |
 | FLASHETH24-001 | ETH          | USDC         | ETH rapid price crashes within 24h           |
 | FLASHETH48-001 | ETH          | USDC         | ETH rapid price crashes within 48h           |
-| MICRODEPEG-001 | USDT         | USDC         | USDT losing its peg to $1.00                 |
-| RATESHOCK-001  | USDC         | USDC         | USDC borrow rate shocks on Aave V3           |
+
+All 6 products use `payoutRatioBps = 8000` (80% payout on trigger, 20% deductible).
+
+> ⏸️ **`RATESHOCK-001`** exists on-chain but is currently **paused (`active: false`) — not purchasable.** `FLASHBTC4H-001` and `MICRODEPEG-001` are **retired / not deployed** — do not attempt to buy them.
 
 Both audiences. See exact trigger condition, premium formula coefficients, payout ratio, and cover bounds for a specific shield.
 
@@ -28,7 +29,7 @@ Both audiences. See exact trigger condition, premium formula coefficients, payou
 
 ### What this does
 
-Each of the 9 shields has its own contract with a specific trigger (e.g. "BTC drops 10% in 24h"). This view shows you the exact rules.
+Each shield has its own contract with a specific trigger (e.g. "BTC drops 10% in 24h"). This view shows you the exact rules.
 
 ### Step by step
 

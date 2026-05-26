@@ -3,6 +3,15 @@
 // hit a real RPC node.
 
 jest.mock("../../src/utils/ethers", () => {
+  // [ux-devex-final] The public /products list now surfaces only canonically
+  // registered products (services/products.ts skips ids with no canonical name),
+  // so the default mock must return real canonical productIds — synthetic
+  // 0x000…00 ids would (correctly) be filtered out and the list would be empty.
+  const { keccak256, toUtf8Bytes } = require("ethers");
+  const DEFAULT_IDS = [
+    keccak256(toUtf8Bytes("FLASHBTC1H-001")),
+    keccak256(toUtf8Bytes("FLASHETH1H-001")),
+  ];
   const fakeProvider = {
     getBlockNumber: jest.fn().mockResolvedValue(12345),
     getBalance: jest.fn().mockResolvedValue(BigInt("123000000000000000")),
@@ -11,7 +20,7 @@ jest.mock("../../src/utils/ethers", () => {
   const fakeRelayer = { address: "0x000000000000000000000000000000000000BEEF" };
   const fakeCoverRouter = {
     getProductCount: jest.fn().mockResolvedValue(2n),
-    productList: jest.fn(async (i: bigint) => `0x${i.toString(16).padStart(64, "0")}`),
+    productList: jest.fn(async (i: bigint) => DEFAULT_IDS[Number(i)]),
     products: jest.fn().mockResolvedValue([
       "0x" + "0".repeat(64),
       8000n, // payoutRatioBps

@@ -125,7 +125,7 @@ When Lumina ships to mainnet, the network switches to **Base L2** (chain ID **84
 
 ## Related skills
 
-- [Browse the 9 Shields catalog](./browse-shields.md)
+- [Browse the Shields catalog](./browse-shields.md)
 - [Buy policy as Human (direct)](./buy-policy-human.md)
 - [Approve USDC](./approve-usdc.md) — required before the first purchase
 
