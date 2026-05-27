@@ -15,8 +15,8 @@ import { logger } from "../utils/logger";
 import { HttpError } from "../middlewares/error";
 import { withLock, RELAYER_TX_LOCK_KEY } from "../utils/lock";
 import { makeCache } from "../utils/cache";
-import { getStartBlock, paginatedQueryFilter } from "./bonds";
-import type { DeferredTopicFilter } from "ethers";
+import { query as indexerQuery } from "../utils/indexerDb";
+import { listProducts } from "./products";
 
 /**
  * On-chain CoverRouterV2 enforces `coverageAmount >= 100e6` ($100 USDC).
@@ -457,57 +457,102 @@ export interface PolicyByWalletRow {
   txHash: string;
   blockNumber: number;
   createdAt: string; // ISO-8601
+  status: "active" | "expired" | "triggered"; // computed (indexer has no expiry handler)
+  expiresAt: string | null; // ISO-8601; null if product duration unknown
+}
+
+// Product durations change rarely; cache the id→durationSeconds map so the
+// per-wallet policy query doesn't re-read the on-chain product list every time.
+const PRODUCT_DURATION_TTL_MS = 5 * 60_000;
+const productDurationCache = makeCache<Map<string, number>>(PRODUCT_DURATION_TTL_MS);
+async function getProductDurations(): Promise<Map<string, number>> {
+  const hit = productDurationCache.get("durations");
+  if (hit) return hit;
+  const map = new Map<string, number>();
+  try {
+    for (const p of await listProducts()) {
+      if (p.productId && Number.isFinite(p.durationSeconds)) {
+        map.set(p.productId.toLowerCase(), Number(p.durationSeconds));
+      }
+    }
+  } catch (e) {
+    logger.warn({ err: e }, "getProductDurations: listProducts failed; status may be incomplete");
+  }
+  productDurationCache.set("durations", map);
+  return map;
 }
 
 const POLICIES_BY_WALLET_TTL_MS = 30_000;
 const policiesByWalletCache = makeCache<PolicyByWalletRow[]>(POLICIES_BY_WALLET_TTL_MS);
 
+interface IndexerPolicyRow {
+  policy_id: string;
+  product_id: string;
+  buyer: string;
+  coverage: string;
+  premium: string;
+  payout: string;
+  status: string | null;
+  triggered_tx_hash: string | null;
+  tx_hash: string;
+  block_number: string | number;
+  block_timestamp: string | number;
+}
+
+/**
+ * Policies owned by a wallet — served from the Ponder INDEXER (not a live
+ * eth_getLogs scan). The previous on-chain scan paged `PolicyCreated` in 45 000-
+ * block windows that public RPCs reject (eth_getLogs range cap), so every window
+ * errored, was swallowed, and the endpoint returned an empty list even though
+ * the policies exist on-chain. The indexer already has every PolicyPurchased row.
+ *
+ * The indexer only flips status on a trigger event (it has no expiry handler),
+ * so a stored "active" can actually be an expired short-duration policy. We
+ * recompute the real status here: triggered > (now ≥ purchase+duration ? expired
+ * : active), using the product's on-chain durationSeconds.
+ */
 export async function getPoliciesByWallet(wallet: string): Promise<PolicyByWalletRow[]> {
   const w = wallet.toLowerCase();
   const cached = policiesByWalletCache.get(w);
   if (cached) return cached;
 
-  const filter = policyManager.filters.PolicyCreated();
-  const latest = await provider.getBlockNumber();
-  const fromBlock = await getStartBlock(latest);
-  const events = await paginatedQueryFilter(
-    policyManager,
-    filter as unknown as DeferredTopicFilter,
-    fromBlock,
-    latest,
-    `PolicyCreated->${w.slice(0, 8)}`
-  );
+  const [dbRows, durations] = await Promise.all([
+    indexerQuery<IndexerPolicyRow>(
+      `SELECT policy_id, product_id, buyer, coverage, premium, payout,
+              status, triggered_tx_hash, tx_hash, block_number, block_timestamp
+       FROM policy
+       WHERE LOWER(buyer) = LOWER($1)
+       ORDER BY block_number DESC`,
+      [w]
+    ),
+    getProductDurations(),
+  ]);
 
-  const mine = events.filter((e) => {
-    const a = ("args" in e ? e.args : undefined) as { buyer?: string } | undefined;
-    return a?.buyer?.toLowerCase() === w;
-  });
-
-  // Block timestamps for the (few) matching policies, deduped + parallel.
-  const uniqueBlocks = Array.from(new Set(mine.map((e) => e.blockNumber)));
-  const tsByBlock = new Map<number, number>();
-  await Promise.all(
-    uniqueBlocks.map(async (bn) => {
-      const b = await provider.getBlock(bn);
-      if (b) tsByBlock.set(bn, Number(b.timestamp));
-    })
-  );
-
-  const rows: PolicyByWalletRow[] = mine.map((e) => {
-    const a = ("args" in e ? e.args : {}) as Record<string, unknown>;
-    const productId = String(a.productId ?? "");
-    const ts = tsByBlock.get(e.blockNumber) ?? 0;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const rows: PolicyByWalletRow[] = dbRows.map((r) => {
+    const productId = String(r.product_id ?? "");
+    const purchasedSec = Number(r.block_timestamp) || 0;
+    const duration = durations.get(productId.toLowerCase());
+    const triggered = Boolean(r.triggered_tx_hash) || r.status === "triggered";
+    const expirySec = duration ? purchasedSec + duration : undefined;
+    const status: PolicyByWalletRow["status"] = triggered
+      ? "triggered"
+      : expirySec !== undefined && nowSec >= expirySec
+        ? "expired"
+        : "active";
     return {
       productId,
       productName: getProductName(productId),
-      policyId: (a.policyId as bigint | undefined)?.toString() ?? "0",
-      buyer: String(a.buyer ?? ""),
-      coverage: (a.coverage as bigint | undefined)?.toString() ?? "0",
-      premium: (a.premium as bigint | undefined)?.toString() ?? "0",
-      payout: (a.payout as bigint | undefined)?.toString() ?? "0",
-      txHash: e.transactionHash,
-      blockNumber: e.blockNumber,
-      createdAt: new Date(ts * 1000).toISOString(),
+      policyId: String(r.policy_id ?? "0"),
+      buyer: String(r.buyer ?? ""),
+      coverage: String(r.coverage ?? "0"),
+      premium: String(r.premium ?? "0"),
+      payout: String(r.payout ?? "0"),
+      txHash: String(r.tx_hash ?? ""),
+      blockNumber: Number(r.block_number) || 0,
+      createdAt: new Date(purchasedSec * 1000).toISOString(),
+      status,
+      expiresAt: expirySec !== undefined ? new Date(expirySec * 1000).toISOString() : null,
     };
   });
 

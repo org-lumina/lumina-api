@@ -34,6 +34,11 @@ jest.mock("../../src/utils/ethers", () => {
   };
 });
 
+// getPoliciesByWallet now reads the Ponder indexer (not a live getLogs scan) and
+// joins product durations; mock both so the no-key test stays hermetic.
+jest.mock("../../src/utils/indexerDb", () => ({ query: jest.fn().mockResolvedValue([]) }));
+jest.mock("../../src/services/products", () => ({ listProducts: jest.fn().mockResolvedValue([]) }));
+
 import request from "supertest";
 import { createApp } from "../../src/app";
 
