@@ -17,10 +17,10 @@ import { webhooksAuthRouter } from "./routes/webhooks";
 import { sandboxRouter } from "./routes/sandbox";
 import { authRouter } from "./routes/auth";
 import { faucetRouter } from "./routes/faucet";
-// [Sprint K disabled — Phase 2 retake] Indexer router import + mount
-// commented while Ponder runtime is parked. Re-enable when restoring
-// `npm run concurrent`.
-// import { indexerRouter } from "./routes/indexer";
+// [Sprint Ponder revival] Indexer router — re-enabled. Endpoints catch DB
+// errors and return a clean 5xx (never crash the API), so they degrade
+// gracefully until DATABASE_URL + the Ponder process are provisioned on Railway.
+import { indexerRouter } from "./routes/indexer";
 import { openapiDocument } from "./openapi";
 import { errorHandler, notFoundHandler } from "./middlewares/error";
 import { authIpLimiter, publicIpLimiter } from "./middlewares/rateLimit";
@@ -143,15 +143,13 @@ export function createApp(): Application {
   // captcha — testnet only, used by humans and AI agents alike).
   app.use("/api/v1", faucetRouter);
 
-  // [Sprint K disabled — Phase 2 retake] Indexer surface — public
-  // read-only views of the Ponder Postgres tables. Endpoints under
-  // /api/v1/{stats,policies,bonds,triggers,marketplace,burns,vesting,
-  // indexer}. Disabled while the Ponder runtime is parked: with no
-  // indexer process, every endpoint would 503 — confusing. Re-enable
-  // alongside `npm run concurrent` in railway.toml + Dockerfile. The
-  // import at the top of this file is intentionally retained so a
-  // future re-enable is a one-line uncomment, not a rebuild.
-  // app.use("/api/v1", indexerRouter);
+  // [Sprint Ponder revival] Indexer surface — public read-only views of the
+  // Ponder Postgres tables. Endpoints under /api/v1/{stats,policies,bonds,
+  // triggers,marketplace,burns,vesting,indexer}. Each handler catches DB
+  // errors, so when the indexer/DB isn't provisioned they return a clean 5xx
+  // instead of crashing — the legacy on-chain /api/v1/public/* endpoints are
+  // untouched and keep serving during the migration.
+  app.use("/api/v1", indexerRouter);
 
   // OpenAPI spec + Swagger UI — both unauthenticated, gated by the public
   // IP limiter. The spec is the source of truth for external agents that
