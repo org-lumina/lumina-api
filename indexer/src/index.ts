@@ -35,7 +35,7 @@ ponder.on("CoverRouterV2:PolicyPurchased", async ({ event, context }) => {
     txHash: event.transaction.hash,
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
-  });
+  }).onConflictDoNothing();
 });
 
 // ─────────────────── CoverRouterV2.TriggerSubmitted ───────────────────
@@ -50,7 +50,7 @@ ponder.on("CoverRouterV2:TriggerSubmitted", async ({ event, context }) => {
     txHash: event.transaction.hash,
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
-  });
+  }).onConflictDoNothing();
   // Flip the policy status in place (no-op if the purchase predates startBlock).
   // Same composite key as the PolicyPurchased insert.
   const policyKey = `${event.args.productId}-${event.args.policyId}`;
@@ -78,7 +78,7 @@ ponder.on("BondVault:BondIssued", async ({ event, context }) => {
     txHash: event.transaction.hash,
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
-  });
+  }).onConflictDoNothing();
 });
 
 // ─────────────────── BondVault.BondRedeemed ───────────────────
@@ -96,7 +96,7 @@ ponder.on("BondVault:BondRedeemed", async ({ event, context }) => {
     txHash: event.transaction.hash,
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
-  });
+  }).onConflictDoNothing();
 });
 
 // ─────────────────── TWAPBurner.BurnExecuted ───────────────────
@@ -112,7 +112,7 @@ ponder.on("TWAPBurner:BurnExecuted", async ({ event, context }) => {
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
     txHash: event.transaction.hash,
-  });
+  }).onConflictDoNothing();
 });
 
 // ─────────────────── LuminaBondMarketplace.Listed ───────────────────
@@ -135,7 +135,7 @@ ponder.on("Marketplace:Listed", async ({ event, context }) => {
     buyerFee: null,
     filledAtBlock: null,
     filledTxHash: null,
-  });
+  }).onConflictDoNothing();
 });
 
 // ─────────────────── LuminaBondMarketplace.Cancelled ───────────────────
@@ -178,7 +178,7 @@ ponder.on("FounderVesting:TrancheReleased", async ({ event, context }) => {
     txHash: event.transaction.hash,
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
-  });
+  }).onConflictDoNothing();
 });
 
 // ─────────────────── helpers ───────────────────
