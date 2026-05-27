@@ -14,6 +14,9 @@ import { getProductName } from "../utils/productNames";
 import { logger } from "../utils/logger";
 import { HttpError } from "../middlewares/error";
 import { withLock, RELAYER_TX_LOCK_KEY } from "../utils/lock";
+import { makeCache } from "../utils/cache";
+import { getStartBlock, paginatedQueryFilter } from "./bonds";
+import type { DeferredTopicFilter } from "ethers";
 
 /**
  * On-chain CoverRouterV2 enforces `coverageAmount >= 100e6` ($100 USDC).
@@ -434,4 +437,80 @@ export async function purchaseViaRelayer(input: PurchaseInput): Promise<Purchase
     coverageAmount: input.coverageAmount.toString(),
     premiumPaid,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// [public read-only] Policies owned by a wallet — reconstructed server-side
+// from PolicyCreated events (buyer is NOT indexed → scan + filter), cached 30s.
+// Reuses the parallel-capable paginatedQueryFilter from bonds.ts. No auth: all
+// of this is public on-chain data; the endpoint just centralizes + caches it so
+// the browser doesn't run a wide eth_getLogs scan.
+// ─────────────────────────────────────────────────────────────────────────
+export interface PolicyByWalletRow {
+  productId: string;
+  productName: string;
+  policyId: string;
+  buyer: string;
+  coverage: string;
+  premium: string;
+  payout: string;
+  txHash: string;
+  blockNumber: number;
+  createdAt: string; // ISO-8601
+}
+
+const POLICIES_BY_WALLET_TTL_MS = 30_000;
+const policiesByWalletCache = makeCache<PolicyByWalletRow[]>(POLICIES_BY_WALLET_TTL_MS);
+
+export async function getPoliciesByWallet(wallet: string): Promise<PolicyByWalletRow[]> {
+  const w = wallet.toLowerCase();
+  const cached = policiesByWalletCache.get(w);
+  if (cached) return cached;
+
+  const filter = policyManager.filters.PolicyCreated();
+  const latest = await provider.getBlockNumber();
+  const fromBlock = await getStartBlock(latest);
+  const events = await paginatedQueryFilter(
+    policyManager,
+    filter as unknown as DeferredTopicFilter,
+    fromBlock,
+    latest,
+    `PolicyCreated->${w.slice(0, 8)}`
+  );
+
+  const mine = events.filter((e) => {
+    const a = ("args" in e ? e.args : undefined) as { buyer?: string } | undefined;
+    return a?.buyer?.toLowerCase() === w;
+  });
+
+  // Block timestamps for the (few) matching policies, deduped + parallel.
+  const uniqueBlocks = Array.from(new Set(mine.map((e) => e.blockNumber)));
+  const tsByBlock = new Map<number, number>();
+  await Promise.all(
+    uniqueBlocks.map(async (bn) => {
+      const b = await provider.getBlock(bn);
+      if (b) tsByBlock.set(bn, Number(b.timestamp));
+    })
+  );
+
+  const rows: PolicyByWalletRow[] = mine.map((e) => {
+    const a = ("args" in e ? e.args : {}) as Record<string, unknown>;
+    const productId = String(a.productId ?? "");
+    const ts = tsByBlock.get(e.blockNumber) ?? 0;
+    return {
+      productId,
+      productName: getProductName(productId),
+      policyId: (a.policyId as bigint | undefined)?.toString() ?? "0",
+      buyer: String(a.buyer ?? ""),
+      coverage: (a.coverage as bigint | undefined)?.toString() ?? "0",
+      premium: (a.premium as bigint | undefined)?.toString() ?? "0",
+      payout: (a.payout as bigint | undefined)?.toString() ?? "0",
+      txHash: e.transactionHash,
+      blockNumber: e.blockNumber,
+      createdAt: new Date(ts * 1000).toISOString(),
+    };
+  });
+
+  policiesByWalletCache.set(w, rows);
+  return rows;
 }

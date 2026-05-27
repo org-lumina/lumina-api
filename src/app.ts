@@ -5,6 +5,7 @@ import swaggerUi from "swagger-ui-express";
 import { healthRouter } from "./routes/health";
 import { productsRouter } from "./routes/products";
 import { statsRouter } from "./routes/stats";
+import { publicRouter } from "./routes/public";
 import { policiesPublicRouter, policiesAuthRouter } from "./routes/policies";
 import { redeemAuthRouter } from "./routes/redeem";
 import { bondsAuthRouter } from "./routes/bonds";
@@ -82,6 +83,10 @@ export function createApp(): Application {
   // Aggregated INSTANT on-chain stats (price/reserve/capacity/supply/chain),
   // cached 30s — powers the public landing's live Hero. Read-only, no auth.
   app.use("/api/v1", publicIpLimiter, statsRouter);
+  // Public, unauthenticated, read-only by-wallet views (policies/bonds),
+  // server-reconstructed + cached 30s — so the browser never runs a wide
+  // eth_getLogs scan. All data is public on-chain; no auth required.
+  app.use("/api/v1/public", publicIpLimiter, publicRouter);
   app.use("/api/v1/policies", publicIpLimiter, policiesPublicRouter);
   // Marketplace GETs are read-only views of on-chain-public state
   // (listings, completed trades, floor). Mount the public router BEFORE
