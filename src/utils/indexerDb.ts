@@ -27,12 +27,27 @@ export function getIndexerPool(): Pool {
     );
   }
 
+  // [schema-align fix] Ponder writes its tables to the schema named by
+  // DATABASE_SCHEMA (`--schema` env), NOT necessarily `public`. When that is set
+  // (e.g. `ponder_v1`, used to dodge the "schema previously used by a different
+  // Ponder app" MigrationError), our unqualified reads (`FROM policy`) resolve
+  // against `public` and only see STALE rows from an older run — the indexer
+  // looks "stuck at N" while it actually indexes fine into the other schema.
+  // Point the connection's search_path at the SAME schema the indexer writes to
+  // (then public as fallback), so reader and writer are always aligned.
+  // Identifier-validated to stay injection-safe (search_path can't be a param).
+  const rawSchema = process.env.DATABASE_SCHEMA?.trim();
+  const schema = rawSchema && /^[A-Za-z_][A-Za-z0-9_]*$/.test(rawSchema) ? rawSchema : "public";
+
   pool = new Pool({
     connectionString: DATABASE_URL,
     max: 5, // small pool — read-only consumer alongside the indexer's writes
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
+    // Resolve unqualified table names against the indexer's schema first.
+    options: `-c search_path=${schema},public`,
   });
+  logger.info({ schema }, "[indexerDb] pool search_path set to indexer schema");
 
   pool.on("error", (err) => {
     logger.error({ err }, "[indexerDb] unexpected pool error");
