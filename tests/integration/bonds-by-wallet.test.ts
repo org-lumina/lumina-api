@@ -51,6 +51,12 @@ const fakeClaimBond = {
     if (!f) return 0n;
     return f.balances[account.toLowerCase()] ?? 0n;
   }),
+  balanceOfBatch: jest.fn(async (accounts: string[], ids: bigint[]) =>
+    ids.map((id, i) => {
+      const f = fixtures.find((x) => x.epochId === id);
+      return f ? (f.balances[accounts[i].toLowerCase()] ?? 0n) : 0n;
+    })
+  ),
   getEpochInfo: jest.fn(async (id: bigint) => {
     const f = fixtures.find((x) => x.epochId === id);
     if (!f) return [false, 0n, 0n, false];

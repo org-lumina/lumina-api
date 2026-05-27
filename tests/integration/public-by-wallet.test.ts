@@ -13,6 +13,7 @@ jest.mock("../../src/utils/ethers", () => {
     filters: { EpochCreated: jest.fn(() => ({})), TransferSingle: jest.fn(() => ({})) },
     queryFilter: emptyLogs,
     balanceOf: jest.fn().mockResolvedValue(0n),
+    balanceOfBatch: jest.fn(async (_accts: string[], ids: bigint[]) => ids.map(() => 0n)),
     getEpochInfo: jest.fn().mockResolvedValue([false, 0n, 0n, false]),
   };
   const policyManager = {

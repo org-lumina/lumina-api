@@ -166,15 +166,11 @@ function enumerateEpochs(): bigint[] {
 const DEFAULT_BOND_MATURITY_SECONDS = 730 * 24 * 60 * 60;
 
 async function buildBondInfo(
-  wallet: string,
   epochId: bigint,
-  maturitySeconds: number
+  maturitySeconds: number,
+  balance: bigint
 ): Promise<BondInfo | undefined> {
-  // [perf] balanceOf + getEpochInfo are independent — fetch in parallel.
-  const [balance, info] = (await Promise.all([
-    claimBond.balanceOf(wallet, epochId),
-    claimBond.getEpochInfo(epochId),
-  ])) as [bigint, any];
+  const info = (await claimBond.getEpochInfo(epochId)) as any;
   const exists = Boolean(info[0] ?? info.exists);
   if (!exists) return undefined;
   const maturity: bigint = info[1] ?? info.maturity;
@@ -222,8 +218,46 @@ async function loadAllBondsForWallet(wallet: string, _includeRedeemed: boolean):
     /* fall back to the 730-day default */
   }
   const epochs = enumerateEpochs();
+
+  // ERC-1155 batch balance: ONE eth_call for every candidate epoch. Doing N
+  // individual balanceOf calls in parallel rate-limited/flaked on the free RPCs
+  // and a single failure rejected the whole Promise.all → 503. balanceOfBatch
+  // collapses it to one request; we only fetch epoch metadata for held epochs.
+  let balances: bigint[];
+  try {
+    balances = (await claimBond.balanceOfBatch(
+      epochs.map(() => wallet),
+      epochs
+    )) as bigint[];
+  } catch {
+    // Fallback (batch unsupported/reverts): per-epoch, each guarded so one bad
+    // call yields 0 instead of failing the whole listing.
+    balances = await Promise.all(
+      epochs.map(async (e) => {
+        try {
+          return (await claimBond.balanceOf(wallet, e)) as bigint;
+        } catch {
+          return 0n;
+        }
+      })
+    );
+  }
+
+  const held: Array<{ epoch: bigint; balance: bigint }> = [];
+  epochs.forEach((e, i) => {
+    const bal = balances[i] ?? 0n;
+    if (bal > 0n) held.push({ epoch: e, balance: bal });
+  });
+
   const built = await Promise.all(
-    epochs.map((e) => buildBondInfo(wallet, e, maturitySeconds))
+    held.map(async (h) => {
+      try {
+        return await buildBondInfo(h.epoch, maturitySeconds, h.balance);
+      } catch (e) {
+        logger.warn({ err: e, epochId: h.epoch.toString() }, "buildBondInfo failed; skipping epoch");
+        return undefined;
+      }
+    })
   );
   return built.filter((b): b is BondInfo => b !== undefined);
 }
