@@ -3,13 +3,15 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# [Sprint K disabled — Phase 2 retake] The Ponder indexer was wired into
-# the API process via `npm run concurrent`, but the runtime crashed
-# repeatedly through 4 hotfixes (PR #27/#28/#29/#30). Founder decision:
-# park the indexer asleep, keep the code/deps/ABIs intact, run only the
-# API for now. Re-enable in Phase 2 by switching this back to
-# "npm run concurrent" once the Ponder issues are resolved.
-startCommand = "npm start"
+# [Sprint Ponder revival] Re-enabled. The 2026 crashes (#27-#30) were the
+# config/event-arg bugs fixed in this PR (old `networks` API vs ponder@0.16
+# `chains`; handlers referencing non-existent event args; ABIs cast `as
+# never`). `npm run concurrent` boots API + indexer; it NO LONGER uses
+# `--kill-others-on-fail` and adds `--restart-tries`, so an indexer crash
+# can never take the API down — it auto-restarts the indexer while the API
+# (and the on-chain /public/* fallbacks) keep serving. Requires DATABASE_URL;
+# without it the indexer endpoints return a clean 5xx, API unaffected.
+startCommand = "npm run concurrent"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
 healthcheckPath = "/health"
