@@ -83,8 +83,25 @@ export async function query<T = unknown>(sql: string, params: unknown[] = []): P
  * query throws and the route returns 503.
  */
 export async function getIndexerSyncState(): Promise<{ lastSyncedBlock: bigint }> {
-  // The exact meta table name depends on Ponder version; this query is a
-  // resilient fallback that introspects pg_tables. Adjust once we pin Ponder.
+  // Prefer Ponder's REAL sync cursor from `_ponder_checkpoint`. It reflects the
+  // block Ponder has actually indexed up to, regardless of whether recent blocks
+  // had events — so health stops falsely reporting "lagging" when the latest
+  // blocks are simply event-less. The checkpoint is a fixed-width encoded string:
+  // blockTimestamp(10) + chainId(16) + blockNumber(16) + ... → block number is
+  // the 16 digits at offset 26.
+  try {
+    const cp = await query<{ latest_checkpoint: string }>(
+      `SELECT latest_checkpoint FROM _ponder_checkpoint ORDER BY chain_id LIMIT 1`
+    );
+    const raw = cp[0]?.latest_checkpoint;
+    if (raw && raw.length >= 42) {
+      const blockNumber = BigInt(raw.slice(26, 42));
+      if (blockNumber > 0n) return { lastSyncedBlock: blockNumber };
+    }
+  } catch {
+    // _ponder_checkpoint absent/renamed across Ponder versions — fall back below.
+  }
+  // Fallback: MAX(block_number) over the event tables (only advances on events).
   const rows = await query<{ block_number: string }>(
     `SELECT MAX(block_number)::text AS block_number FROM (
        SELECT block_number FROM policy

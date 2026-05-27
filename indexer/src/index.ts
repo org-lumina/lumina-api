@@ -1,5 +1,5 @@
 import { ponder } from "ponder:registry";
-import { policy, bond, burn, trigger, marketplaceListing, vestingClaim } from "ponder:schema";
+import { policy, bond, burn, trigger, marketplaceListing, vestingClaim, bondTransfer } from "ponder:schema";
 
 /**
  * LUMINA event handlers — Sprint "Ponder revival".
@@ -179,6 +179,44 @@ ponder.on("FounderVesting:TrancheReleased", async ({ event, context }) => {
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
   }).onConflictDoNothing();
+});
+
+// ─────────────────── ClaimBond.TransferSingle (ERC-1155) ───────────────────
+// event TransferSingle(address indexed operator, address indexed from,
+//   address indexed to, uint256 id, uint256 value)
+ponder.on("ClaimBond:TransferSingle", async ({ event, context }) => {
+  await context.db.insert(bondTransfer).values({
+    id: `${event.transaction.hash}-${event.log.logIndex}`,
+    operator: event.args.operator,
+    from: event.args.from,
+    to: event.args.to,
+    epochId: event.args.id,
+    amount: event.args.value,
+    blockNumber: event.block.number,
+    blockTimestamp: event.block.timestamp,
+    txHash: event.transaction.hash,
+  }).onConflictDoNothing();
+});
+
+// ─────────────────── ClaimBond.TransferBatch (ERC-1155) ───────────────────
+// event TransferBatch(address indexed operator, address indexed from,
+//   address indexed to, uint256[] ids, uint256[] values)
+ponder.on("ClaimBond:TransferBatch", async ({ event, context }) => {
+  const ids = event.args.ids;
+  const values = event.args.values;
+  for (let i = 0; i < ids.length; i++) {
+    await context.db.insert(bondTransfer).values({
+      id: `${event.transaction.hash}-${event.log.logIndex}-${i}`,
+      operator: event.args.operator,
+      from: event.args.from,
+      to: event.args.to,
+      epochId: ids[i],
+      amount: values[i],
+      blockNumber: event.block.number,
+      blockTimestamp: event.block.timestamp,
+      txHash: event.transaction.hash,
+    }).onConflictDoNothing();
+  }
 });
 
 // ─────────────────── helpers ───────────────────
