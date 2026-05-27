@@ -2,7 +2,6 @@ import { createConfig } from "ponder";
 import { http, fallback } from "viem";
 
 import { abi as CoverRouterAbi } from "./abis/CoverRouterV2";
-import { abi as ClaimBondAbi } from "./abis/ClaimBond";
 import { abi as BondVaultAbi } from "./abis/BondVault";
 import { abi as TwapBurnerAbi } from "./abis/TWAPBurner";
 import { abi as FounderVestingAbi } from "./abis/FounderVesting";
@@ -58,12 +57,13 @@ export default createConfig({
       address: (env.COVER_ROUTER ?? ZERO_ADDRESS) as `0x${string}`,
       startBlock: START_BLOCK,
     },
-    ClaimBond: {
-      chain: "baseSepolia",
-      abi: ClaimBondAbi,
-      address: (env.CLAIM_BOND ?? ZERO_ADDRESS) as `0x${string}`,
-      startBlock: START_BLOCK,
-    },
+    // ClaimBond intentionally NOT registered: we have no ClaimBond handler
+    // (bond issuance/redemption is indexed from BondVault.BondIssued/
+    // .BondRedeemed, and marketplace transfers from Marketplace events), so
+    // registering it only produced a "No registered indexing functions
+    // name=ClaimBond" WARN. Add it back with a TransferSingle/TransferBatch
+    // handler + a bond_transfer table if arbitrary ERC-1155 transfers ever
+    // need tracking.
     BondVault: {
       chain: "baseSepolia",
       abi: BondVaultAbi,
