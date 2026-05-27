@@ -16,7 +16,12 @@ import { policy, bond, burn, trigger, marketplaceListing, vestingClaim } from "p
 //   address paidBy)
 ponder.on("CoverRouterV2:PolicyPurchased", async ({ event, context }) => {
   await context.db.insert(policy).values({
-    id: event.args.policyId.toString(),
+    // policyId is a PER-PRODUCT counter (e.g. BTC24 #1 AND BTC48 #1 both exist),
+    // so it is NOT globally unique. Using it alone as the primary key caused a
+    // unique-violation on the first cross-product collision, which threw inside
+    // the handler and HALTED indexing (Ponder froze at the offending block,
+    // event_count=0 thereafter). Key by (productId, policyId) — globally unique.
+    id: `${event.args.productId}-${event.args.policyId}`,
     policyId: event.args.policyId,
     productId: event.args.productId,
     buyer: event.args.buyer,
@@ -47,9 +52,11 @@ ponder.on("CoverRouterV2:TriggerSubmitted", async ({ event, context }) => {
     blockTimestamp: event.block.timestamp,
   });
   // Flip the policy status in place (no-op if the purchase predates startBlock).
-  const existing = await context.db.find(policy, { id: event.args.policyId.toString() });
+  // Same composite key as the PolicyPurchased insert.
+  const policyKey = `${event.args.productId}-${event.args.policyId}`;
+  const existing = await context.db.find(policy, { id: policyKey });
   if (existing) {
-    await context.db.update(policy, { id: event.args.policyId.toString() }).set({
+    await context.db.update(policy, { id: policyKey }).set({
       status: "triggered",
       triggeredTxHash: event.transaction.hash,
       triggeredAt: event.block.timestamp,
