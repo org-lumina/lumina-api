@@ -18,7 +18,7 @@
     "indexer:install": "cd indexer && npm install",
     "indexer:start": "cd indexer && npm start",
     "indexer:dev": "cd indexer && npm run dev",
-    "concurrent": "concurrently --kill-others-on-fail --names \"api,indexer\" --prefix-colors \"blue,green\" \"npm start\" \"npm run indexer:start\""
+    "concurrent": "concurrently --names \"api,indexer\" --prefix-colors \"blue,green\" --restart-tries 5 --restart-after 5000 \"npm start\" \"npm run indexer:start\""
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",
