@@ -1,0 +1,36 @@
+[
+  {
+    "type": "event",
+    "name": "Listed",
+    "inputs": [
+      { "name": "listingId", "type": "uint256", "indexed": true },
+      { "name": "seller", "type": "address", "indexed": true },
+      { "name": "epochId", "type": "uint256", "indexed": true },
+      { "name": "amount", "type": "uint256", "indexed": false },
+      { "name": "priceUSDC", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Cancelled",
+    "inputs": [
+      { "name": "listingId", "type": "uint256", "indexed": true },
+      { "name": "seller", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Bought",
+    "inputs": [
+      { "name": "listingId", "type": "uint256", "indexed": true },
+      { "name": "buyer", "type": "address", "indexed": true },
+      { "name": "seller", "type": "address", "indexed": true },
+      { "name": "priceUSDC", "type": "uint256", "indexed": false },
+      { "name": "sellerFee", "type": "uint256", "indexed": false },
+      { "name": "buyerFee", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  }
+]

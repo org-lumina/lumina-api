@@ -1,96 +1,106 @@
 import { ponder } from "ponder:registry";
-import { policy, bond, burn, trigger, vestingClaim } from "ponder:schema";
+import { policy, bond, burn, trigger, marketplaceListing, vestingClaim } from "ponder:schema";
 
 /**
- * Sprint J — handlers stub.
+ * LUMINA event handlers — Sprint "Ponder revival".
  *
- * 5 of the highest-value events are wired below. Each handler is a thin
- * `event → row` translator; aggregations (volume, lag, holder counts) are
- * computed at query time in the API layer, not pre-aggregated here.
- *
- * To add an event:
- *   1. Append the table to `ponder.schema.ts`.
- *   2. Add the contract+abi to `ponder.config.ts`.
- *   3. Add an `ponder.on("Contract:Event", ...)` block here.
- *   4. Run `npm run codegen` to regenerate type bindings.
- *
- * The `id` convention is `${event.transaction.hash}-${event.log.logIndex}` —
- * unique per emitted log even across reorgs.
+ * Every `event.args.*` reference below is verified against the committed ABIs
+ * in ./abis (so `ponder codegen`/typecheck is authoritative). Append-only rows
+ * use `${txHash}-${logIndex}` ids; mutable rows (policy, marketplaceListing)
+ * are keyed by their on-chain id so later events update() them in place.
  */
 
-// ─────────────────── 1. CoverRouterV2.PolicyPurchased ───────────────────
+// ─────────────────── CoverRouterV2.PolicyPurchased ───────────────────
+// event PolicyPurchased(bytes32 indexed productId, uint256 indexed policyId,
+//   address indexed buyer, uint256 coverage, uint256 premium, uint256 payout,
+//   address paidBy)
 ponder.on("CoverRouterV2:PolicyPurchased", async ({ event, context }) => {
   await context.db.insert(policy).values({
-    id: `${event.transaction.hash}-${event.log.logIndex}`,
-    // Cast args to any until we drop in the real ABI — Ponder generates the
-    // strict types from the JSON, but the field names match the Solidity
-    // event signature (CoverRouterV2.sol:90 `PolicyPurchased(uint256 indexed
-    // policyId, address indexed buyer, bytes32 productId, address shield,
-    // uint256 coverageAmount, uint256 premium, uint256 expiresAt)`).
-    policyId: (event.args as any).policyId as bigint,
-    buyer: (event.args as any).buyer as string,
-    shield: (event.args as any).shield as string,
-    productId: (event.args as any).productId as string,
-    premium: (event.args as any).premium as bigint,
-    coverageAmount: (event.args as any).coverageAmount as bigint,
-    expiresAt: (event.args as any).expiresAt as bigint,
+    id: event.args.policyId.toString(),
+    policyId: event.args.policyId,
+    productId: event.args.productId,
+    buyer: event.args.buyer,
+    coverage: event.args.coverage,
+    premium: event.args.premium,
+    payout: event.args.payout,
+    paidBy: event.args.paidBy,
     status: "active",
+    triggeredTxHash: null,
+    triggeredAt: null,
     txHash: event.transaction.hash,
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
   });
 });
 
-// ─────────────────── 2a. BondVault.BondIssued ───────────────────
+// ─────────────────── CoverRouterV2.TriggerSubmitted ───────────────────
+// event TriggerSubmitted(bytes32 indexed productId, uint256 indexed policyId,
+//   address submitter)
+ponder.on("CoverRouterV2:TriggerSubmitted", async ({ event, context }) => {
+  await context.db.insert(trigger).values({
+    id: `${event.transaction.hash}-${event.log.logIndex}`,
+    policyId: event.args.policyId,
+    productId: event.args.productId,
+    submitter: event.args.submitter,
+    txHash: event.transaction.hash,
+    blockNumber: event.block.number,
+    blockTimestamp: event.block.timestamp,
+  });
+  // Flip the policy status in place (no-op if the purchase predates startBlock).
+  const existing = await context.db.find(policy, { id: event.args.policyId.toString() });
+  if (existing) {
+    await context.db.update(policy, { id: event.args.policyId.toString() }).set({
+      status: "triggered",
+      triggeredTxHash: event.transaction.hash,
+      triggeredAt: event.block.timestamp,
+    });
+  }
+});
+
+// ─────────────────── BondVault.BondIssued ───────────────────
+// event BondIssued(address indexed to, uint256 indexed epochId, uint256 usdAmount)
 ponder.on("BondVault:BondIssued", async ({ event, context }) => {
-  // BondVault.sol:35 `event BondIssued(address indexed to, uint256 indexed
-  // epochId, uint256 usdAmount)`. Maturity computed off-chain from epochId
-  // (epoch 202806 → maturity = first day of June 2028).
-  const maturityAt = epochToMaturityTimestamp((event.args as any).epochId as bigint);
   await context.db.insert(bond).values({
     id: `${event.transaction.hash}-${event.log.logIndex}`,
-    owner: (event.args as any).to as string,
-    epochId: (event.args as any).epochId as bigint,
-    amount: (event.args as any).usdAmount as bigint,
-    faceValueUsd: ((event.args as any).usdAmount as bigint) * 10n ** 18n,
-    issuedAt: event.block.timestamp,
-    maturityAt,
-    redeemed: false,
-    redeemedAt: null,
+    kind: "issued",
+    owner: event.args.to,
+    epochId: event.args.epochId,
+    usdAmount: event.args.usdAmount,
+    luminaAmount: null,
+    maturityAt: epochToMaturityTimestamp(event.args.epochId),
     txHash: event.transaction.hash,
+    blockNumber: event.block.number,
+    blockTimestamp: event.block.timestamp,
   });
 });
 
-// ─────────────────── 2b. BondVault.BondRedeemed ───────────────────
+// ─────────────────── BondVault.BondRedeemed ───────────────────
+// event BondRedeemed(address indexed holder, uint256 indexed epochId,
+//   uint256 usdAmount, uint256 luminaAmount, uint256 priceUsed)
 ponder.on("BondVault:BondRedeemed", async ({ event, context }) => {
-  // BondRedeemed flips the `redeemed` flag on the matching bond row(s).
-  // For now we insert a redemption record; matching to issuance is left as
-  // a query-time JOIN keyed by (owner, epochId). The skeleton intentionally
-  // skips the update path — Phase 2 follow-up will add it via Ponder's
-  // `update()` once the matching is verified.
   await context.db.insert(bond).values({
-    id: `${event.transaction.hash}-${event.log.logIndex}-redeem`,
-    owner: (event.args as any).from as string,
-    epochId: (event.args as any).epochId as bigint,
-    amount: (event.args as any).usdAmount as bigint,
-    faceValueUsd: ((event.args as any).usdAmount as bigint) * 10n ** 18n,
-    issuedAt: 0n,
-    maturityAt: 0n,
-    redeemed: true,
-    redeemedAt: event.block.timestamp,
+    id: `${event.transaction.hash}-${event.log.logIndex}`,
+    kind: "redeemed",
+    owner: event.args.holder,
+    epochId: event.args.epochId,
+    usdAmount: event.args.usdAmount,
+    luminaAmount: event.args.luminaAmount,
+    maturityAt: epochToMaturityTimestamp(event.args.epochId),
     txHash: event.transaction.hash,
+    blockNumber: event.block.number,
+    blockTimestamp: event.block.timestamp,
   });
 });
 
-// ─────────────────── 3. TWAPBurner.BurnExecuted ───────────────────
+// ─────────────────── TWAPBurner.BurnExecuted ───────────────────
+// event BurnExecuted(uint256 usdcSpent, uint256 luminaBurned,
+//   uint256 effectivePrice, uint256 timestamp)
 ponder.on("TWAPBurner:BurnExecuted", async ({ event, context }) => {
-  // TWAPBurner.sol — `event BurnExecuted(uint256 usdcSpent, uint256
-  // luminaBurned, uint256 effectivePrice, uint256 timestamp)`.
   await context.db.insert(burn).values({
     id: `${event.transaction.hash}-${event.log.logIndex}`,
-    usdcSpent: (event.args as any).usdcSpent as bigint,
-    luminaBurned: (event.args as any).luminaBurned as bigint,
-    effectivePriceUsdc: (event.args as any).effectivePrice as bigint,
+    usdcSpent: event.args.usdcSpent,
+    luminaBurned: event.args.luminaBurned,
+    effectivePriceUsdc: event.args.effectivePrice,
     source: "TWAPBurner",
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
@@ -98,34 +108,66 @@ ponder.on("TWAPBurner:BurnExecuted", async ({ event, context }) => {
   });
 });
 
-// ─────────────────── 4. CoverRouterV2.TriggerSubmitted ───────────────────
-ponder.on("CoverRouterV2:TriggerSubmitted", async ({ event, context }) => {
-  // CoverRouterV2.sol — `event TriggerSubmitted(uint256 indexed policyId,
-  // address indexed shield, address indexed submittedBy)`.
-  // Status starts as "submitted"; gets updated when settlement events fire.
-  await context.db.insert(trigger).values({
-    id: `${event.transaction.hash}-${event.log.logIndex}`,
-    policyId: (event.args as any).policyId as bigint,
-    shield: (event.args as any).shield as string,
-    submittedBy: (event.args as any).submittedBy as string,
-    status: "submitted",
-    payoutAmount: null,
-    txHash: event.transaction.hash,
-    blockNumber: event.block.number,
+// ─────────────────── LuminaBondMarketplace.Listed ───────────────────
+// event Listed(uint256 indexed listingId, address indexed seller,
+//   uint256 indexed epochId, uint256 amount, uint256 priceUSDC)
+ponder.on("Marketplace:Listed", async ({ event, context }) => {
+  await context.db.insert(marketplaceListing).values({
+    id: event.args.listingId.toString(),
+    listingId: event.args.listingId,
+    seller: event.args.seller,
+    epochId: event.args.epochId,
+    amount: event.args.amount,
+    priceUsdc: event.args.priceUSDC,
+    status: "active",
+    createdAtBlock: event.block.number,
+    createdTxHash: event.transaction.hash,
+    createdAt: event.block.timestamp,
+    filledBy: null,
+    sellerFee: null,
+    buyerFee: null,
+    filledAtBlock: null,
+    filledTxHash: null,
   });
 });
 
-// ─────────────────── 5. FounderVesting.TrancheReleased ───────────────────
-// FounderVesting.sol:73 emits `TrancheReleased(uint256 trancheNumber,
-// uint256 amount, address recipient)` on each of the 3 tranche releases
-// (31 days apart after AltSeason trigger).
+// ─────────────────── LuminaBondMarketplace.Cancelled ───────────────────
+// event Cancelled(uint256 indexed listingId, address indexed seller)
+ponder.on("Marketplace:Cancelled", async ({ event, context }) => {
+  const id = event.args.listingId.toString();
+  const existing = await context.db.find(marketplaceListing, { id });
+  if (existing) {
+    await context.db.update(marketplaceListing, { id }).set({ status: "cancelled" });
+  }
+});
+
+// ─────────────────── LuminaBondMarketplace.Bought ───────────────────
+// event Bought(uint256 indexed listingId, address indexed buyer,
+//   address indexed seller, uint256 priceUSDC, uint256 sellerFee, uint256 buyerFee)
+ponder.on("Marketplace:Bought", async ({ event, context }) => {
+  const id = event.args.listingId.toString();
+  const existing = await context.db.find(marketplaceListing, { id });
+  if (existing) {
+    await context.db.update(marketplaceListing, { id }).set({
+      status: "filled",
+      filledBy: event.args.buyer,
+      sellerFee: event.args.sellerFee,
+      buyerFee: event.args.buyerFee,
+      filledAtBlock: event.block.number,
+      filledTxHash: event.transaction.hash,
+    });
+  }
+});
+
+// ─────────────────── FounderVesting.TrancheReleased ───────────────────
+// event TrancheReleased(uint256 trancheNumber, uint256 amount, address recipient)
 ponder.on("FounderVesting:TrancheReleased", async ({ event, context }) => {
   await context.db.insert(vestingClaim).values({
     id: `${event.transaction.hash}-${event.log.logIndex}`,
-    recipient: (event.args as any).recipient as string,
+    recipient: event.args.recipient,
     vestingType: "founder",
-    trancheNumber: Number((event.args as any).trancheNumber),
-    amount: (event.args as any).amount as bigint,
+    trancheNumber: Number(event.args.trancheNumber),
+    amount: event.args.amount,
     txHash: event.transaction.hash,
     blockNumber: event.block.number,
     blockTimestamp: event.block.timestamp,
@@ -135,9 +177,8 @@ ponder.on("FounderVesting:TrancheReleased", async ({ event, context }) => {
 // ─────────────────── helpers ───────────────────
 
 /**
- * Convert a YYYYMM-format epoch id to its maturity Unix timestamp. Epoch IDs
- * follow `year * 100 + month` convention (e.g. 202806 → June 2028). Maturity
- * is the first second of that month UTC.
+ * Convert a YYYYMM epoch id to its maturity Unix timestamp (first second of
+ * that month, UTC). e.g. 202806 → 1 June 2028 00:00:00Z.
  */
 function epochToMaturityTimestamp(epochId: bigint): bigint {
   const year = Number(epochId / 100n);
