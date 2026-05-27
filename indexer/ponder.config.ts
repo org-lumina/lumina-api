@@ -22,7 +22,22 @@ import { abi as MarketplaceAbi } from "./abis/LuminaBondMarketplace";
  */
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 const env = process.env as Record<string, string | undefined>;
-const START_BLOCK = Number(env.DEPLOYMENT_BLOCK_CLAIMBOND ?? "41680286");
+// V5.4 genesis on Base Sepolia. Mirrors lumina-api's getStartBlock() guard:
+// ONLY honor DEPLOYMENT_BLOCK_CLAIMBOND when it's a valid positive integer.
+// A bare `Number(env ?? default)` is unsafe — `??` does NOT catch an empty
+// string (a common Railway value), and `Number("") === 0` would make Ponder
+// backfill from genesis (~42M blocks), so it never reaches recent events and
+// /indexer/health appears stuck at lastSyncedBlock=0.
+const GENESIS_BLOCK_V54 = 41_680_286;
+function resolveStartBlock(): number {
+  const raw = env.DEPLOYMENT_BLOCK_CLAIMBOND;
+  if (raw && raw.trim().length > 0) {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  }
+  return GENESIS_BLOCK_V54;
+}
+const START_BLOCK = resolveStartBlock();
 const TRANSPORT = fallback([
   http(env.RPC_URL_QUICKNODE),
   http(env.RPC_URL),
