@@ -35,7 +35,6 @@ indexerRouter.use(publicIpLimiter);
 
 const AddressSchema = z.string().refine(ethers.isAddress, "must be a valid 0x address");
 const LimitSchema = z.coerce.number().int().positive().max(500).default(50);
-const OffsetSchema = z.coerce.number().int().nonnegative().default(0);
 const LUMINA_TOTAL_SUPPLY_WEI = 100_000_000n * 10n ** 18n;
 
 // ── 1. indexer health ──────────────────────────────────────────────────────
@@ -136,26 +135,10 @@ indexerRouter.get("/stats/policy-volume-24h", async (_req, res, next) => {
 });
 
 // ── 7. policies by buyer ─────────────────────────────────────────────────────
-indexerRouter.get("/policies/by-buyer/:address", async (req, res, next) => {
-  try {
-    const parsed = AddressSchema.safeParse(req.params.address);
-    if (!parsed.success) throw new HttpError(400, "invalid address", "invalid_address");
-    const limit = LimitSchema.parse(req.query.limit);
-    const offset = OffsetSchema.parse(req.query.offset);
-    const rows = await query(
-      `SELECT id, policy_id, product_id, buyer, coverage, premium, payout, paid_by,
-              status, triggered_tx_hash, triggered_at, tx_hash, block_number, block_timestamp
-       FROM policy
-       WHERE LOWER(buyer) = LOWER($1)
-       ORDER BY block_number DESC
-       LIMIT $2 OFFSET $3`,
-      [parsed.data, limit, offset]
-    );
-    res.json({ policies: rows, count: rows.length, limit, offset });
-  } catch (err) {
-    next(err);
-  }
-});
+// MOVED to policiesPublicRouter (src/routes/policies.ts), registered before its
+// "/:productId/:policyId" route. Here it was shadowed by that param route
+// (mounted at /api/v1/policies, before this /api/v1 indexerRouter), so
+// "by-buyer" was parsed as :productId and 400'd on the bytes32 check.
 
 // ── 8. bonds by owner (net holdings per epoch) ───────────────────────────────
 indexerRouter.get("/bonds/by-owner/:address", async (req, res, next) => {

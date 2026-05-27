@@ -6,6 +6,7 @@ import { apiLimiter } from "../middlewares/rateLimit";
 import { HttpError } from "../middlewares/error";
 import { getPolicy, purchaseViaRelayer } from "../services/policies";
 import { findIdempotency, listPoliciesByOwner, recordPolicy, saveIdempotency } from "../db/database";
+import { query } from "../utils/indexerDb";
 import { emit as emitWebhook } from "../services/webhooks";
 import {
   getExpectedAsset,
@@ -26,6 +27,34 @@ const AddressSchema = z.string().refine(ethers.isAddress, "must be a valid 0x ad
 const PolicyCompositeKey = z.object({
   productId: ProductIdSchema,
   policyId: z.string().regex(/^\d+$/, "policyId must be a positive integer string"),
+});
+
+// Public (indexer-backed): list policies by buyer.
+// MUST be registered BEFORE the "/:productId/:policyId" param route below —
+// otherwise Express matches "by-buyer" as :productId and 400s on the bytes32
+// check (route-shadowing fix). Express matches in registration order, so
+// specific routes go before parametric ones.
+const ByBuyerLimit = z.coerce.number().int().positive().max(500).default(50);
+const ByBuyerOffset = z.coerce.number().int().nonnegative().default(0);
+policiesPublicRouter.get("/by-buyer/:address", async (req, res, next) => {
+  try {
+    const parsed = AddressSchema.safeParse(req.params.address);
+    if (!parsed.success) throw new HttpError(400, "invalid address", "invalid_address");
+    const limit = ByBuyerLimit.parse(req.query.limit);
+    const offset = ByBuyerOffset.parse(req.query.offset);
+    const rows = await query(
+      `SELECT id, policy_id, product_id, buyer, coverage, premium, payout, paid_by,
+              status, triggered_tx_hash, triggered_at, tx_hash, block_number, block_timestamp
+       FROM policy
+       WHERE LOWER(buyer) = LOWER($1)
+       ORDER BY block_number DESC
+       LIMIT $2 OFFSET $3`,
+      [parsed.data, limit, offset]
+    );
+    res.json({ policies: rows, count: rows.length, limit, offset });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Public: read policy by (productId, policyId).
