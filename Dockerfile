@@ -39,7 +39,8 @@ COPY --from=build --chown=lumina:lumina /app/indexer ./indexer
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-# [Sprint K disabled — Phase 2 retake] Was: CMD ["npm", "run", "concurrent"]
-# (boots API + Ponder indexer via concurrently). Indexer parked asleep —
-# only the API runs. Restore "concurrent" once Ponder issues are fixed.
-CMD ["npm", "start"]
+# [Sprint Ponder revival] Boots API + Ponder indexer. `concurrent` no longer
+# uses --kill-others-on-fail and adds --restart-tries, so an indexer crash
+# auto-restarts without taking the API down. (railway.toml startCommand
+# overrides this on Railway; kept in sync for local `docker run` parity.)
+CMD ["npm", "run", "concurrent"]
