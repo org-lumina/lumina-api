@@ -111,3 +111,21 @@ export const vestingClaim = onchainTable("vesting_claim", (t) => ({
   blockNumber: t.bigint().notNull(),
   blockTimestamp: t.bigint().notNull(),
 }));
+
+// ClaimBond.TransferSingle / .TransferBatch (ERC-1155). The canonical source of
+// truth for who HOLDS each bond: covers mints (from=0x0), marketplace escrow in/
+// out, secondary transfers, and redemptions/burns (to=0x0). Net holdings per
+// (owner, epochId) = SUM(amount to owner) − SUM(amount from owner). This is what
+// makes a marketplace BUYER's acquired bonds show up in /bonds/by-owner, which
+// the BondVault-only `bond` table (issuance ledger) cannot.
+export const bondTransfer = onchainTable("bond_transfer", (t) => ({
+  id: t.text().primaryKey(), // `${txHash}-${logIndex}` (or `-${i}` for batch legs)
+  operator: t.text().notNull(),
+  from: t.text().notNull(),
+  to: t.text().notNull(),
+  epochId: t.bigint().notNull(), // ERC-1155 token id == ClaimBond epoch (YYYYMM)
+  amount: t.bigint().notNull(),
+  blockNumber: t.bigint().notNull(),
+  blockTimestamp: t.bigint().notNull(),
+  txHash: t.text().notNull(),
+}));

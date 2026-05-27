@@ -141,20 +141,24 @@ indexerRouter.get("/stats/policy-volume-24h", async (_req, res, next) => {
 // "by-buyer" was parsed as :productId and 400'd on the bytes32 check.
 
 // ── 8. bonds by owner (net holdings per epoch) ───────────────────────────────
+// Computed from the ERC-1155 transfer ledger (bond_transfer) so it reflects the
+// TRUE current holder — including bonds acquired on the secondary marketplace —
+// not just BondVault issuance. Net = (received by owner) − (sent by owner).
+// `from`/`to` are SQL reserved words → quoted.
 indexerRouter.get("/bonds/by-owner/:address", async (req, res, next) => {
   try {
     const parsed = AddressSchema.safeParse(req.params.address);
     if (!parsed.success) throw new HttpError(400, "invalid address", "invalid_address");
     const rows = await query(
       `SELECT epoch_id,
-              COALESCE(SUM(CASE WHEN kind='issued' THEN usd_amount ELSE -usd_amount END), 0)::text AS balance,
-              MAX(maturity_at)::text AS maturity_at,
-              MIN(block_timestamp) FILTER (WHERE kind='issued')::text AS issued_at,
-              BOOL_OR(kind='redeemed') AS has_redeemed
-       FROM bond
-       WHERE LOWER(owner) = LOWER($1)
+              (COALESCE(SUM(amount) FILTER (WHERE LOWER("to") = LOWER($1)), 0)
+               - COALESCE(SUM(amount) FILTER (WHERE LOWER("from") = LOWER($1)), 0))::text AS balance,
+              MIN(block_timestamp) FILTER (WHERE LOWER("to") = LOWER($1))::text AS first_acquired_at
+       FROM bond_transfer
+       WHERE LOWER("to") = LOWER($1) OR LOWER("from") = LOWER($1)
        GROUP BY epoch_id
-       HAVING COALESCE(SUM(CASE WHEN kind='issued' THEN usd_amount ELSE -usd_amount END), 0) > 0
+       HAVING (COALESCE(SUM(amount) FILTER (WHERE LOWER("to") = LOWER($1)), 0)
+               - COALESCE(SUM(amount) FILTER (WHERE LOWER("from") = LOWER($1)), 0)) > 0
        ORDER BY epoch_id DESC`,
       [parsed.data]
     );
