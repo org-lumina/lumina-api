@@ -535,9 +535,13 @@ export async function getPoliciesByWallet(wallet: string): Promise<PolicyByWalle
     const duration = durations.get(productId.toLowerCase());
     const triggered = Boolean(r.triggered_tx_hash) || r.status === "triggered";
     const expirySec = duration ? purchasedSec + duration : undefined;
+    // Unknown duration ⇒ the product is no longer in the active catalog
+    // (deactivated/removed via removeProduct). Such a policy can't be acted on,
+    // so it is NOT active — classify it as expired rather than defaulting to
+    // active (otherwise stale removed-product policies inflate the active count).
     const status: PolicyByWalletRow["status"] = triggered
       ? "triggered"
-      : expirySec !== undefined && nowSec >= expirySec
+      : expirySec === undefined || nowSec >= expirySec
         ? "expired"
         : "active";
     return {
