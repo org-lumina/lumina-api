@@ -13,6 +13,7 @@ import { marketplaceAuthRouter, marketplacePublicRouter } from "./routes/marketp
 import { keysRouter } from "./routes/keys";
 import { oracleAuthRouter } from "./routes/oracle";
 import { agentRouter } from "./routes/agent";
+import { agentDashboardRouter } from "./routes/agentDashboard";
 import { webhooksAuthRouter } from "./routes/webhooks";
 import { sandboxRouter } from "./routes/sandbox";
 import { authRouter } from "./routes/auth";
@@ -126,6 +127,10 @@ export function createApp(): Application {
   // the wallet). GET/DELETE /keys are authenticated via x-api-key behind
   // the same IP-rate-limit gate as the other authenticated routes.
   app.use("/api/v1/agent", authIpLimiter, agentRouter);
+
+  // Authenticated agent-dashboard reads (activity feed + earnings), scoped to
+  // the caller's wallet, served from the indexer.
+  app.use("/api/v1/agent", authIpLimiter, agentDashboardRouter);
 
   // Webhook subscriptions (CRUD). Auth + per-agent rate-limited.
   app.use("/api/v1/webhooks", authIpLimiter, webhooksAuthRouter);
