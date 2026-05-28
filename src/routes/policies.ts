@@ -7,7 +7,6 @@ import { HttpError } from "../middlewares/error";
 import { getPolicy, purchaseViaRelayer } from "../services/policies";
 import { findIdempotency, listPoliciesByOwner, recordPolicy, saveIdempotency } from "../db/database";
 import { query } from "../utils/indexerDb";
-import { emit as emitWebhook } from "../services/webhooks";
 import {
   getExpectedAsset,
   getExpectedAssetForName,
@@ -159,18 +158,11 @@ policiesAuthRouter.post("/", authMiddleware, apiLimiter, async (req, res, next) 
     if (idempotencyKey) {
       saveIdempotency(idempotencyKey, req.agent.id, JSON.stringify(responseBody));
     }
-    // Fan out to webhook subscribers for the buyer wallet. Emit is fire-and-
-    // forget by design; failures are logged but never block the response.
-    emitWebhook("policy_purchased", receipt.buyer, {
-      event: "policy_purchased",
-      productId: receipt.productId,
-      policyId: receipt.policyId,
-      buyer: receipt.buyer,
-      coverageAmount: receipt.coverageAmount,
-      premiumPaid: receipt.premiumPaid,
-      txHash: receipt.txHash,
-      occurredAt: new Date().toISOString(),
-    });
+    // NOTE: the `policy_purchased` webhook is emitted by the chain-events poller
+    // (services/chainEvents.ts), NOT here — that is the single source of truth
+    // for every domain event and also catches purchases made by self-signed
+    // wallets that never hit this relayer route. Emitting here too would
+    // double-deliver. See chainEvents.ts.
     res.status(201).json(responseBody);
   } catch (e) {
     next(e);

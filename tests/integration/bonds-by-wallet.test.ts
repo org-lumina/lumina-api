@@ -51,6 +51,12 @@ const fakeClaimBond = {
     if (!f) return 0n;
     return f.balances[account.toLowerCase()] ?? 0n;
   }),
+  balanceOfBatch: jest.fn(async (accounts: string[], ids: bigint[]) =>
+    ids.map((id, i) => {
+      const f = fixtures.find((x) => x.epochId === id);
+      return f ? (f.balances[accounts[i].toLowerCase()] ?? 0n) : 0n;
+    })
+  ),
   getEpochInfo: jest.fn(async (id: bigint) => {
     const f = fixtures.find((x) => x.epochId === id);
     if (!f) return [false, 0n, 0n, false];
@@ -170,18 +176,18 @@ describe("GET /api/v1/bonds/:wallet", () => {
   });
 
   test("test_StatusFilter_Matured", async () => {
-    pushBond({ epochId: 202700n, createdAtUnix: 1_700_000_000, matured: true,  balanceFor: { wallet: WALLET, amount: 500n } });
+    pushBond({ epochId: 202601n, createdAtUnix: 1_700_000_000, matured: true,  balanceFor: { wallet: WALLET, amount: 500n } });
     pushBond({ epochId: 202804n, createdAtUnix: 1_777_000_000, matured: false, balanceFor: { wallet: WALLET, amount: 800n } });
 
     const res = await request(app).get(`/api/v1/bonds/${WALLET}?status=matured`).set("x-api-key", apiKey);
     expect(res.status).toBe(200);
     expect(res.body.totalBonds).toBe(1);
-    expect(res.body.bonds[0].epochId).toBe("202700");
+    expect(res.body.bonds[0].epochId).toBe("202601");
     expect(res.body.bonds[0].isMatured).toBe(true);
   });
 
   test("test_StatusFilter_Active", async () => {
-    pushBond({ epochId: 202700n, createdAtUnix: 1_700_000_000, matured: true,  balanceFor: { wallet: WALLET, amount: 500n } });
+    pushBond({ epochId: 202601n, createdAtUnix: 1_700_000_000, matured: true,  balanceFor: { wallet: WALLET, amount: 500n } });
     pushBond({ epochId: 202804n, createdAtUnix: 1_777_000_000, matured: false, balanceFor: { wallet: WALLET, amount: 800n } });
 
     const res = await request(app).get(`/api/v1/bonds/${WALLET}?status=active`).set("x-api-key", apiKey);
@@ -194,7 +200,7 @@ describe("GET /api/v1/bonds/:wallet", () => {
   test("test_Pagination", async () => {
     for (let i = 0; i < 5; i++) {
       pushBond({
-        epochId: BigInt(202800 + i),
+        epochId: BigInt(202801 + i), // valid YYYYMM months 2028-01..05 (month 00 isn't a real epoch)
         createdAtUnix: 1_770_000_000 + i * 86_400,
         balanceFor: { wallet: WALLET, amount: BigInt(100 + i) },
       });
@@ -223,7 +229,7 @@ describe("GET /api/v1/bonds/:wallet", () => {
   });
 
   test("test_RedeemedBondsExcluded (when status='active')", async () => {
-    pushBond({ epochId: 202700n, createdAtUnix: 1_700_000_000, balanceFor: { wallet: WALLET, amount: 0n } }); // redeemed
+    pushBond({ epochId: 202601n, createdAtUnix: 1_700_000_000, balanceFor: { wallet: WALLET, amount: 0n } }); // redeemed
     pushBond({ epochId: 202804n, createdAtUnix: 1_777_000_000, balanceFor: { wallet: WALLET, amount: 800n } }); // active
 
     const res = await request(app).get(`/api/v1/bonds/${WALLET}?status=active`).set("x-api-key", apiKey);

@@ -131,77 +131,54 @@ function isoFromUnix(seconds: bigint | number): string {
 }
 
 /**
- * Enumerate every epoch that has ever existed via the (cheap, low-cardinality)
- * `EpochCreated` event log. Returns `{epochId, createdAt}` per epoch.
+ * Enumerate candidate epochs DETERMINISTICALLY (no event-log scan).
+ *
+ * A ClaimBond token-id IS its epoch = the bond's maturity month encoded as
+ * YYYYMM (e.g. a bond minted May-2026 with a 730-day maturity lands at 2028-05
+ * → 202805). We previously discovered these via the `EpochCreated` log, but the
+ * shared getLogs paginator uses a 45 000-block window that public/free RPCs
+ * REJECT (eth_getLogs range cap ≈ 2-3k blocks on base-sepolia) — every window
+ * errored, was swallowed, and the wallet saw an empty portfolio.
+ *
+ * Epochs are months, so the universe is tiny and predictable: enumerate
+ * [2026-01 .. now+27 months] (covers the max 730-day maturity plus buffer) and
+ * let `buildBondInfo` drop epochs that don't exist or aren't held. `balanceOf`
+ * and `getEpochInfo` are plain `eth_call`s with no range limit, so this path is
+ * immune to the getLogs cap. `createdAt` is unknown without the mint log, so we
+ * report the maturity month's first day (a valid date; not the issuance time).
  */
-async function enumerateEpochs(): Promise<Array<{ epochId: bigint; createdAt: string }>> {
-  const filter = claimBond.filters.EpochCreated();
-  const latest = await provider.getBlockNumber();
-  const fromBlock = await getStartBlock(latest);
-  const events = await paginatedQueryFilter(
-    claimBond,
-    filter as unknown as DeferredTopicFilter,
-    fromBlock,
-    latest,
-    "EpochCreated"
-  );
-
-  const blockTimestamps = new Map<number, bigint>();
-  // Dedupe by blockNumber so the same block is only fetched once.
-  const uniqueBlocks = Array.from(new Set(events.map((e) => e.blockNumber)));
-  await Promise.all(
-    uniqueBlocks.map(async (bn) => {
-      const block = await provider.getBlock(bn);
-      if (block) blockTimestamps.set(bn, BigInt(block.timestamp));
-    })
-  );
-
-  return events.map((ev) => {
-    const args = ("args" in ev ? ev.args : undefined) as { epochId?: bigint } | undefined;
-    const epochId = args?.epochId ?? 0n;
-    const ts = blockTimestamps.get(ev.blockNumber) ?? 0n;
-    return { epochId, createdAt: isoFromUnix(ts) };
-  });
-}
-
-/**
- * Augment redeemed-status results: enumerate epochs the wallet ever HELD via
- * `TransferSingle` events with `to == wallet`. Used only when status=='redeemed'
- * (default flow uses the cheaper EpochCreated enumeration).
- */
-async function enumerateHistoricalEpochs(wallet: string): Promise<bigint[]> {
-  const filter = claimBond.filters.TransferSingle(null, null, wallet);
-  const latest = await provider.getBlockNumber();
-  const fromBlock = await getStartBlock(latest);
-  const events = await paginatedQueryFilter(
-    claimBond,
-    filter as unknown as DeferredTopicFilter,
-    fromBlock,
-    latest,
-    `TransferSingle->${wallet.slice(0, 8)}`
-  );
-  const ids = new Set<string>();
-  for (const ev of events) {
-    const args = ("args" in ev ? ev.args : undefined) as { id?: bigint } | undefined;
-    if (args?.id !== undefined) ids.add(args.id.toString());
+function enumerateEpochs(): bigint[] {
+  const now = new Date();
+  const startAbs = 2026 * 12 + 0; // Jan 2026 (protocol genesis), month index 0
+  const endAbs = now.getUTCFullYear() * 12 + now.getUTCMonth() + 27; // +27mo > 730d maturity
+  const out: bigint[] = [];
+  for (let abs = startAbs; abs <= endAbs; abs++) {
+    const y = Math.floor(abs / 12);
+    const m = (abs % 12) + 1; // 1..12
+    out.push(BigInt(y * 100 + m));
   }
-  return Array.from(ids).map((s) => BigInt(s));
+  return out;
 }
+
+// Fallback when BondVault.bondMaturitySeconds() can't be read (730 days = the
+// mainnet default). Used to back out a bond's issuance time from its maturity,
+// since we no longer read the mint-event block timestamp.
+const DEFAULT_BOND_MATURITY_SECONDS = 730 * 24 * 60 * 60;
 
 async function buildBondInfo(
-  wallet: string,
   epochId: bigint,
-  createdAt: string
+  maturitySeconds: number,
+  balance: bigint
 ): Promise<BondInfo | undefined> {
-  // [perf] balanceOf + getEpochInfo are independent — fetch in parallel.
-  const [balance, info] = (await Promise.all([
-    claimBond.balanceOf(wallet, epochId),
-    claimBond.getEpochInfo(epochId),
-  ])) as [bigint, any];
+  const info = (await claimBond.getEpochInfo(epochId)) as any;
   const exists = Boolean(info[0] ?? info.exists);
   if (!exists) return undefined;
   const maturity: bigint = info[1] ?? info.maturity;
   const matured: boolean = Boolean(info[3] ?? info.matured);
+  // createdAt is no longer sourced from the mint log; derive issuance as
+  // maturity − maturitySeconds (exact for fixed-maturity bonds).
+  const matSec = BigInt(maturitySeconds);
+  const createdAt = isoFromUnix(maturity > matSec ? maturity - matSec : 0n);
 
   const faceValueWei = balance * 10n ** 18n;
   let luminaEquivalent = "0";
@@ -228,30 +205,59 @@ async function buildBondInfo(
   };
 }
 
-async function loadAllBondsForWallet(wallet: string, includeRedeemed: boolean): Promise<BondInfo[]> {
-  const epochs = await enumerateEpochs();
-  const epochsByCreated = new Map<string, string>();
-  for (const e of epochs) epochsByCreated.set(e.epochId.toString(), e.createdAt);
+async function loadAllBondsForWallet(wallet: string, _includeRedeemed: boolean): Promise<BondInfo[]> {
+  // The deterministic month enumeration already spans every past epoch (where
+  // redeemed/zero-balance bonds live) and every future maturity epoch, so the
+  // redeemed branch no longer needs the (getLogs-based, range-capped)
+  // historical scan — buildBondInfo reports isRedeemed from the live balance.
+  let maturitySeconds = DEFAULT_BOND_MATURITY_SECONDS;
+  try {
+    const m = Number(await bondVault.bondMaturitySeconds());
+    if (Number.isFinite(m) && m > 0) maturitySeconds = m;
+  } catch {
+    /* fall back to the 730-day default */
+  }
+  const epochs = enumerateEpochs();
 
-  let candidateIds = epochs.map((e) => e.epochId);
-  if (includeRedeemed) {
-    // Add wallet-historical ids the global enumeration may have missed
-    // (defensive — `EpochCreated` already covers everything in V5.1, but a
-    // future cleanup that prunes events would otherwise hide redeemed bonds).
-    const historical = await enumerateHistoricalEpochs(wallet);
-    const set = new Set(candidateIds.map((id) => id.toString()));
-    for (const id of historical) {
-      if (!set.has(id.toString())) {
-        candidateIds.push(id);
-        if (!epochsByCreated.has(id.toString())) {
-          epochsByCreated.set(id.toString(), isoFromUnix(0));
+  // ERC-1155 batch balance: ONE eth_call for every candidate epoch. Doing N
+  // individual balanceOf calls in parallel rate-limited/flaked on the free RPCs
+  // and a single failure rejected the whole Promise.all → 503. balanceOfBatch
+  // collapses it to one request; we only fetch epoch metadata for held epochs.
+  let balances: bigint[];
+  try {
+    balances = (await claimBond.balanceOfBatch(
+      epochs.map(() => wallet),
+      epochs
+    )) as bigint[];
+  } catch {
+    // Fallback (batch unsupported/reverts): per-epoch, each guarded so one bad
+    // call yields 0 instead of failing the whole listing.
+    balances = await Promise.all(
+      epochs.map(async (e) => {
+        try {
+          return (await claimBond.balanceOf(wallet, e)) as bigint;
+        } catch {
+          return 0n;
         }
-      }
-    }
+      })
+    );
   }
 
+  const held: Array<{ epoch: bigint; balance: bigint }> = [];
+  epochs.forEach((e, i) => {
+    const bal = balances[i] ?? 0n;
+    if (bal > 0n) held.push({ epoch: e, balance: bal });
+  });
+
   const built = await Promise.all(
-    candidateIds.map((id) => buildBondInfo(wallet, id, epochsByCreated.get(id.toString()) ?? isoFromUnix(0)))
+    held.map(async (h) => {
+      try {
+        return await buildBondInfo(h.epoch, maturitySeconds, h.balance);
+      } catch (e) {
+        logger.warn({ err: e, epochId: h.epoch.toString() }, "buildBondInfo failed; skipping epoch");
+        return undefined;
+      }
+    })
   );
   return built.filter((b): b is BondInfo => b !== undefined);
 }

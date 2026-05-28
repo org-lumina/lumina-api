@@ -16,9 +16,10 @@
     "test:integration": "jest --runInBand integration",
     "smoke": "ts-node scripts/smoke.ts",
     "indexer:install": "cd indexer && npm install",
-    "indexer:start": "cd indexer && npm start",
+    "indexer:start": "node scripts/indexer-supervisor.mjs",
+    "indexer:start:raw": "cd indexer && npm start",
     "indexer:dev": "cd indexer && npm run dev",
-    "concurrent": "concurrently --names \"api,indexer\" --prefix-colors \"blue,green\" --restart-tries 5 --restart-after 5000 \"npm start\" \"npm run indexer:start\""
+    "concurrent": "concurrently --names \"api,indexer\" --prefix-colors \"blue,green\" --restart-tries 50 --restart-after 5000 \"npm start\" \"npm run indexer:start\""
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",

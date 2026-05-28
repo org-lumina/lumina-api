@@ -13,6 +13,7 @@ jest.mock("../../src/utils/ethers", () => {
     filters: { EpochCreated: jest.fn(() => ({})), TransferSingle: jest.fn(() => ({})) },
     queryFilter: emptyLogs,
     balanceOf: jest.fn().mockResolvedValue(0n),
+    balanceOfBatch: jest.fn(async (_accts: string[], ids: bigint[]) => ids.map(() => 0n)),
     getEpochInfo: jest.fn().mockResolvedValue([false, 0n, 0n, false]),
   };
   const policyManager = {
@@ -33,6 +34,11 @@ jest.mock("../../src/utils/ethers", () => {
     getShield: jest.fn(),
   };
 });
+
+// getPoliciesByWallet now reads the Ponder indexer (not a live getLogs scan) and
+// joins product durations; mock both so the no-key test stays hermetic.
+jest.mock("../../src/utils/indexerDb", () => ({ query: jest.fn().mockResolvedValue([]) }));
+jest.mock("../../src/services/products", () => ({ listProducts: jest.fn().mockResolvedValue([]) }));
 
 import request from "supertest";
 import { createApp } from "../../src/app";

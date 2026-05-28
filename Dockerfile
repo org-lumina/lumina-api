@@ -36,6 +36,8 @@ COPY --from=build --chown=lumina:lumina /app/package.json ./package.json
 # pre-compiled) + node_modules + ABI JSON. Ponder doesn't have a `npm run build`
 # step — it transpiles on the fly with esbuild internally.
 COPY --from=build --chown=lumina:lumina /app/indexer ./indexer
+# Node helper scripts (indexer supervisor) — run at runtime, not compiled.
+COPY --from=build --chown=lumina:lumina /app/scripts ./scripts
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

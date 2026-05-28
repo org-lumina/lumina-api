@@ -42,6 +42,10 @@ const app = createApp();
 
 const wallet = ethers.Wallet.createRandom().address;
 const apiKey = issueKey(wallet, "webhook-test").plaintext;
+// Separate wallet/key for the SSRF + deliveries tests so their requests don't
+// consume the per-agent rate-limit budget the CRUD tests above rely on.
+const wallet2 = ethers.Wallet.createRandom().address;
+const apiKey2 = issueKey(wallet2, "webhook-test-2").plaintext;
 
 describe("POST /api/v1/webhooks", () => {
   it("creates a subscription and returns the secret exactly once", async () => {
@@ -76,6 +80,47 @@ describe("POST /api/v1/webhooks", () => {
     await request(app).post("/api/v1/webhooks").set("x-api-key", apiKey).send({ url });
     const res = await request(app).post("/api/v1/webhooks").set("x-api-key", apiKey).send({ url });
     expect(res.status).toBe(409);
+  });
+});
+
+describe("SSRF guard", () => {
+  it("rejects a private-range IP host (400 blocked_host)", async () => {
+    const res = await request(app)
+      .post("/api/v1/webhooks")
+      .set("x-api-key", apiKey2)
+      .send({ url: "https://10.0.0.1/hook" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("blocked_host");
+  });
+
+  it("rejects the cloud-metadata IP (400)", async () => {
+    const res = await request(app)
+      .post("/api/v1/webhooks")
+      .set("x-api-key", apiKey2)
+      .send({ url: "https://169.254.169.254/latest/meta-data" });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /api/v1/webhooks/:id/deliveries", () => {
+  it("404s on a subscription the caller does not own", async () => {
+    const res = await request(app)
+      .get("/api/v1/webhooks/999999/deliveries")
+      .set("x-api-key", apiKey2);
+    expect(res.status).toBe(404);
+  });
+
+  it("200s with a deliveries array for an owned subscription", async () => {
+    const created = await request(app)
+      .post("/api/v1/webhooks")
+      .set("x-api-key", apiKey2)
+      .send({ url: "https://example.com/deliveries-probe", events: ["policy_purchased"] });
+    expect(created.status).toBe(201);
+    const res = await request(app)
+      .get(`/api/v1/webhooks/${created.body.id}/deliveries`)
+      .set("x-api-key", apiKey2);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.deliveries)).toBe(true);
   });
 });
 
