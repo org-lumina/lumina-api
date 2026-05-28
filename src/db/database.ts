@@ -190,6 +190,15 @@ function migrate(d: Database.Database): void {
       FOREIGN KEY (subscription_id) REFERENCES webhook_subscriptions(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_webhook_del_pending ON webhook_deliveries(next_attempt_at) WHERE status = 'pending';
+
+    -- Generic key/value store. Used by the chain-events emitter to persist its
+    -- per-stream block cursors so on-chain events are emitted exactly once
+    -- across restarts.
+    CREATE TABLE IF NOT EXISTS kv (
+      k TEXT PRIMARY KEY,
+      v TEXT NOT NULL,
+      updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000)
+    );
   `);
   logger.debug("DB migrated");
 }
@@ -323,6 +332,61 @@ export function updateWebhookDelivery(
   if (fields.length === 0) return;
   values.push(id);
   d.prepare(`UPDATE webhook_deliveries SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+}
+
+/**
+ * Deliveries for one subscription, newest first. Joined with the event name so
+ * the UI can show "which event" alongside the HTTP result. Ownership is NOT
+ * checked here — callers must verify the subscription belongs to the agent
+ * (see getWebhookSubscriptionForWallet) before exposing this.
+ */
+export interface WebhookDeliveryLogRow extends WebhookDeliveryRow {
+  event: string;
+}
+export function listWebhookDeliveriesBySubscription(
+  subscriptionId: number,
+  limit = 20
+): WebhookDeliveryLogRow[] {
+  const d = getDb();
+  return d
+    .prepare(
+      `SELECT del.*, ev.event AS event
+       FROM webhook_deliveries del
+       JOIN webhook_events ev ON ev.id = del.event_id
+       WHERE del.subscription_id = ?
+       ORDER BY del.id DESC
+       LIMIT ?`
+    )
+    .all(subscriptionId, limit) as WebhookDeliveryLogRow[];
+}
+
+/** Fetch a subscription only if it belongs to `wallet` (ownership guard). */
+export function getWebhookSubscriptionForWallet(
+  id: number,
+  wallet: string
+): WebhookSubscriptionRow | undefined {
+  const d = getDb();
+  return d
+    .prepare("SELECT * FROM webhook_subscriptions WHERE id = ? AND wallet = ?")
+    .get(id, wallet.toLowerCase()) as WebhookSubscriptionRow | undefined;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Generic key/value store (chain-events cursors, etc.)
+// ────────────────────────────────────────────────────────────────────────────
+
+export function kvGet(key: string): string | undefined {
+  const d = getDb();
+  const r = d.prepare("SELECT v FROM kv WHERE k = ?").get(key) as { v: string } | undefined;
+  return r?.v;
+}
+
+export function kvSet(key: string, value: string): void {
+  const d = getDb();
+  d.prepare(
+    `INSERT INTO kv (k, v, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(k) DO UPDATE SET v = excluded.v, updated_at = excluded.updated_at`
+  ).run(key, value, Date.now());
 }
 
 // Agents

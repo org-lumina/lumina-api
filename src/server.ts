@@ -3,6 +3,7 @@ import { loadConfig } from "./utils/config";
 import { logger } from "./utils/logger";
 import { getDb, closeDb } from "./db/database";
 import { startWebhookWorker, stopWebhookWorker } from "./services/webhooks";
+import { startChainEventsEmitter, stopChainEventsEmitter } from "./services/chainEvents";
 
 const cfg = loadConfig();
 
@@ -10,6 +11,9 @@ const app = createApp();
 getDb(); // run migrations on boot
 // Started AFTER migrations so the queue tables are guaranteed to exist.
 startWebhookWorker();
+// Produces webhook events from on-chain activity (triggers, bonds, listings)
+// by polling the indexer. Safe no-op if the indexer DB is unreachable.
+startChainEventsEmitter();
 
 const server = app.listen(cfg.PORT, () => {
   logger.info({ port: cfg.PORT, chainId: cfg.CHAIN_ID, env: cfg.NODE_ENV }, "Lumina API listening");
@@ -18,6 +22,7 @@ const server = app.listen(cfg.PORT, () => {
 function shutdown(signal: string): void {
   logger.info({ signal }, "shutting down");
   stopWebhookWorker();
+  stopChainEventsEmitter();
   server.close((err) => {
     if (err) logger.error({ err }, "error closing http server");
     closeDb();
