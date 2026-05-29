@@ -111,7 +111,14 @@ function runPonderOnce() {
     const child = spawn("npm", ["start"], {
       cwd: INDEXER_DIR,
       stdio: ["inherit", "pipe", "pipe"],
-      env: process.env,
+      // Aislamos PORT del indexer (Ponder Hono usa su default histórico 42069)
+      // para evitar collision con Express API REST que usa Railway PORT=3000.
+      // Fix de bug observado post-PR #60 (mainnet migration) — el supervisor
+      // heredaba TODO process.env incluyendo PORT, y Ponder ganaba la carrera
+      // al bindeo, dejando Express en EADDRINUSE + restart loop infinito.
+      // Solo Express debe exponer la URL pública de Railway; la Hono de
+      // Ponder es internal-only por diseño (ver indexer/src/api/index.ts).
+      env: { ...process.env, PORT: process.env.PONDER_PORT ?? "42069" },
     });
     let ownership = false;
     const onData = (buf) => {
