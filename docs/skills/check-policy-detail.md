@@ -1,6 +1,6 @@
 # Skill: Check policy detail
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 Both audiences. Look up a single policy by `(productId, policyId)`.
 
@@ -36,7 +36,7 @@ Public REST endpoint — no auth — that returns a single policy snapshot. Use 
 ### Ready-to-use LLM prompt
 
 ```
-You are an AI agent verifying a Lumina policy state (Base Sepolia).
+You are an AI agent verifying a Lumina policy state (Base mainnet).
 
 YOUR GOAL: Fetch the latest snapshot for a single policy.
 

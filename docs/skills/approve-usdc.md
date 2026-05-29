@@ -1,6 +1,6 @@
 # Skill: Approve USDC
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 > **Skill ID**: `approve-usdc` · **Audience**: Human · **Difficulty**: ⭐ Easy
 
@@ -17,10 +17,10 @@ Confirmed by source: `CoverRouterV2.sol:210` — `usdc.safeTransferFrom(buyer, a
 
 ## Contract & function
 
-| | Sepolia testnet (V5.1) |
+| | Base mainnet (V5.1) |
 |---|---|
-| Token | USDC (MockUSDC) |
-| Token address | `0xD944d8e5D8329994D83950872Ec210891d3Ab6AE` |
+| Token | USDC (USDC) |
+| Token address | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 | Function | `approve(address spender, uint256 amount)` |
 | Spender (CoverRouterV2) | `0xebC3A783477FbD2720C024e16A8d63B8Db983D84` |
 | Decimals | 6 (USDC standard) |
@@ -31,13 +31,13 @@ Confirmed by source: `CoverRouterV2.sol:210` — `usdc.safeTransferFrom(buyer, a
 
 ```ts
 import { createWalletClient, custom, parseUnits, erc20Abi } from 'viem'
-import { baseSepolia } from 'viem/chains'
+import { base } from 'viem/chains'
 
-const USDC = '0xD944d8e5D8329994D83950872Ec210891d3Ab6AE'
+const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
 const COVER_ROUTER = '0xebC3A783477FbD2720C024e16A8d63B8Db983D84'
 
 const client = createWalletClient({
-  chain: baseSepolia,
+  chain: base,
   transport: custom(window.ethereum!),
 })
 const [account] = await client.getAddresses()
@@ -66,7 +66,7 @@ function ApproveButton({ premium }: { premium: bigint }) {
     <button
       onClick={() =>
         writeContract({
-          address: '0xD944d8e5D8329994D83950872Ec210891d3Ab6AE',
+          address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
           abi: erc20Abi,
           functionName: 'approve',
           args: ['0xebC3A783477FbD2720C024e16A8d63B8Db983D84', premium],

@@ -7,7 +7,7 @@ Railway service.
 
 ## Architecture
 ```
-Base Sepolia ──events──▶ Ponder (indexer/) ──writes──▶ Postgres ◀──reads── lumina-api (/api/v1/...)
+Base mainnet ──events──▶ Ponder (indexer/) ──writes──▶ Postgres ◀──reads── lumina-api (/api/v1/...)
 ```
 - `indexer/ponder.config.ts` — chains + 6 contracts (addresses from env).
 - `indexer/ponder.schema.ts` — 6 tables (policy, trigger, bond, burn, marketplace_listing, vesting_claim).
@@ -45,7 +45,7 @@ npx tsc -p tsconfig.json --noEmit   # typechecks handlers against real ABI types
   from its last-synced block in Postgres — no full re-backfill.
 - If the DB is lost/corrupt: drop the Ponder schema and restart; it re-backfills
   from `DEPLOYMENT_BLOCK_CLAIMBOND`. Idempotent — safe to re-run.
-- Reorgs: Ponder handles Base Sepolia reorgs natively (reverts affected rows).
+- Reorgs: Ponder handles Base mainnet reorgs natively (reverts affected rows).
 
 ## Cost
 A Railway Postgres starter plugin is ~$5/mo (Hobby) and shares the existing

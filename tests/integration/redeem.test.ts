@@ -17,7 +17,7 @@ jest.mock("../../src/utils/ethers", () => {
     getTransactionReceipt: jest.fn(),
     getBlockNumber: jest.fn().mockResolvedValue(1),
     getBalance: jest.fn().mockResolvedValue(0n),
-    getNetwork: jest.fn().mockResolvedValue({ chainId: 84532n }),
+    getNetwork: jest.fn().mockResolvedValue({ chainId: 8453n }),
   };
   const fakeBondVault = { target: BOND_VAULT_ADDRESS, interface: iface };
 

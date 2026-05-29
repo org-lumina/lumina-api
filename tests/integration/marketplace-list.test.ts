@@ -19,7 +19,7 @@ jest.mock("../../src/utils/ethers", () => {
     getBlock: jest.fn().mockResolvedValue({ timestamp: 1_777_000_000 }),
     getBlockNumber: jest.fn().mockResolvedValue(1),
     getBalance: jest.fn().mockResolvedValue(0n),
-    getNetwork: jest.fn().mockResolvedValue({ chainId: 84532n }),
+    getNetwork: jest.fn().mockResolvedValue({ chainId: 8453n }),
   };
   const fakeMarketplace = {
     target: MARKETPLACE_ADDR,

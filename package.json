@@ -2,7 +2,7 @@
   "name": "@org-lumina/lumina-api",
   "version": "0.1.0",
   "private": true,
-  "description": "Lumina Protocol API — REST API for Base Sepolia V5.1 deployment",
+  "description": "Lumina Protocol API — REST API for Base mainnet V5.1 deployment",
   "main": "dist/server.js",
   "engines": {
     "node": ">=20.0.0"

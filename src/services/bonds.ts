@@ -9,7 +9,7 @@ export type BondStatusFilter = "active" | "matured" | "redeemed" | "all";
 // ────────────────────────────────────────────────────────────────────────
 // getLogs paginator (founder-locked policy)
 // ────────────────────────────────────────────────────────────────────────
-// Public RPCs (Alchemy free tier, base-sepolia.org) cap eth_getLogs to a
+// Public RPCs (Alchemy free tier, base-mainnet.org) cap eth_getLogs to a
 // small block range. A wallet-scoped query against a contract deployed
 // hundreds of thousands of blocks ago therefore needs to be split into
 // fixed-size windows. Window size is 45 000 blocks per the founder spec.
@@ -137,7 +137,7 @@ function isoFromUnix(seconds: bigint | number): string {
  * YYYYMM (e.g. a bond minted May-2026 with a 730-day maturity lands at 2028-05
  * → 202805). We previously discovered these via the `EpochCreated` log, but the
  * shared getLogs paginator uses a 45 000-block window that public/free RPCs
- * REJECT (eth_getLogs range cap ≈ 2-3k blocks on base-sepolia) — every window
+ * REJECT (eth_getLogs range cap ≈ 2-3k blocks on base-mainnet) — every window
  * errored, was swallowed, and the wallet saw an empty portfolio.
  *
  * Epochs are months, so the universe is tiny and predictable: enumerate

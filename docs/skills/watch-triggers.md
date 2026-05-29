@@ -1,6 +1,6 @@
 # Skill: Watch oracle triggers
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 Both audiences. Get notified the moment a policy trigger fires.
 
@@ -38,7 +38,7 @@ Subscribe to `PolicyTriggered` events from `PolicyManagerV2`. The event fires th
 ### Ready-to-use LLM prompt
 
 ```
-You are an AI agent monitoring policy triggers on Lumina (Base Sepolia).
+You are an AI agent monitoring policy triggers on Lumina (Base mainnet).
 
 YOUR GOAL: Detect when the agent's policies trigger and a payout fires.
 
@@ -65,8 +65,8 @@ WHEN TO STOP:
 import { createPublicClient, webSocket, parseAbiItem } from 'viem'
 
 const client = createPublicClient({
-  chain: baseSepolia,
-  transport: webSocket('wss://base-sepolia-rpc.publicnode.com'),
+  chain: base,
+  transport: webSocket('wss://base-mainnet-rpc.publicnode.com'),
 })
 
 const unwatch = client.watchEvent({

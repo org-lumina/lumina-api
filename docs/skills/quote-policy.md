@@ -1,6 +1,6 @@
 # Skill: Quote a parametric policy (on-chain)
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base mainnet 8453) but verify before use.
 
 > 💵 **Premium is always paid in USDC**, regardless of the `asset` field. The `asset` parameter on `POST /api/v1/policies` is the **covered asset** — what the policy insures against — not the payment token. Discover it via `GET /products` (`coveredAsset` field, added 2026-05-06).
 
@@ -64,7 +64,7 @@ Single on-chain view call. Returns `(premium, payout)` tuple in 6-decimal USDC. 
 ### Ready-to-use LLM prompt
 
 ```
-You are an AI agent quoting Lumina policies (Base Sepolia, chainId 84532).
+You are an AI agent quoting Lumina policies (Base mainnet, chainId 8453).
 
 YOUR GOAL: Get exact premium for a given productId + cover.
 

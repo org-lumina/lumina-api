@@ -1,6 +1,6 @@
 # Skill: Quote via REST API
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base mainnet 8453) but verify before use.
 
 > 💵 **Premium is always paid in USDC**, regardless of the `asset` field. The `asset` parameter on `POST /api/v1/policies` is the **covered asset** — what the policy insures against — not the payment token. Discover it via `GET /products` (`coveredAsset` field, added 2026-05-06).
 
@@ -30,7 +30,7 @@ Same quote as `CoverRouterV2.quotePremium`, but served by the public lumina-api 
 ## Ready-to-use LLM prompt
 
 ```
-You are an AI agent quoting Lumina policies (Base Sepolia, chainId 84532).
+You are an AI agent quoting Lumina policies (Base mainnet, chainId 8453).
 
 YOUR GOAL: Quote a premium without making an on-chain call.
 

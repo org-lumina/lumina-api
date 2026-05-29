@@ -1,6 +1,6 @@
 # Skill: Health check
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 **For**: AI Agents · **Type**: read · **Difficulty**: ⭐
 
@@ -13,7 +13,7 @@ Public, unauthenticated endpoint for monitors and uptime probes. Returns service
 ## Ready-to-use LLM prompt
 
 ```
-You are an AI agent verifying Lumina API health (Base Sepolia).
+You are an AI agent verifying Lumina API health (Base mainnet).
 
 YOUR GOAL: Confirm the API is reachable before issuing real calls.
 

@@ -1,10 +1,10 @@
 /**
- * Smoke test against the live Base Sepolia deploy.
+ * Smoke test against the live Base mainnet deploy.
  *
  *   npm run smoke
  *
  * Reads RPC + contract addresses from .env. Hits CoverRouter to:
- *   1. Confirm the RPC is reachable and chain id is 84532.
+ *   1. Confirm the RPC is reachable and chain id is 8453.
  *   2. Read getProductCount() — expected 9 after the 2026-04-27 deploy.
  *   3. Read each product's config + shield + quotePremium for a sample coverage.
  *

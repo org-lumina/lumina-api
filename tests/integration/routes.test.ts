@@ -15,7 +15,7 @@ jest.mock("../../src/utils/ethers", () => {
   const fakeProvider = {
     getBlockNumber: jest.fn().mockResolvedValue(12345),
     getBalance: jest.fn().mockResolvedValue(BigInt("123000000000000000")),
-    getNetwork: jest.fn().mockResolvedValue({ chainId: 84532n }),
+    getNetwork: jest.fn().mockResolvedValue({ chainId: 8453n }),
   };
   const fakeRelayer = { address: "0x000000000000000000000000000000000000BEEF" };
   const fakeCoverRouter = {
@@ -99,7 +99,7 @@ describe("GET /health", () => {
     const res = await request(app).get("/health");
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("ok");
-    expect(res.body.chain.chainId).toBe(84532);
+    expect(res.body.chain.chainId).toBe(8453);
     expect(res.body.relayer.address).toBe("0x000000000000000000000000000000000000BEEF");
     expect(res.body.contracts.coverRouter).toBeDefined();
   });

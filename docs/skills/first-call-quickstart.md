@@ -1,6 +1,6 @@
 # Lumina Agent Quickstart — Your First Call in 3 Minutes
 
-> 🔄 Addresses are dynamic — fetch from `GET /health`. Values below are correct as of 2026-05-06 on Base Sepolia (84532).
+> 🔄 Addresses are dynamic — fetch from `GET /health`. Values below are correct as of 2026-05-06 on Base mainnet (8453).
 
 > 💵 **Premium is always paid in USDC**, regardless of the `asset` field. The `asset` parameter on `POST /api/v1/policies` is the **covered asset** — what the policy insures against — not the payment token. Discover it via `GET /products` (`coveredAsset` field, added 2026-05-06).
 

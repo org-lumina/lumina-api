@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "5b8e0d3a-1110-4a37-9c1c-7e8a4b2d9001",
     "name": "Lumina API",
-    "description": "Lumina Protocol REST API — Base Sepolia (84532). Open `GET Health` first to discover the canonical contract addresses returned by `/health`. Authenticated routes use `x-api-key` (issue via POST /agent/onboard). Most write routes accept an optional `Idempotency-Key` header.",
+    "description": "Lumina Protocol REST API — Base mainnet (8453). Open `GET Health` first to discover the canonical contract addresses returned by `/health`. Authenticated routes use `x-api-key` (issue via POST /agent/onboard). Most write routes accept an optional `Idempotency-Key` header.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

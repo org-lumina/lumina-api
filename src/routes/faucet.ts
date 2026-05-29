@@ -22,7 +22,7 @@ import {
  * GET  /api/v1/faucet/status
  *
  * Mints `FAUCET_USDC_AMOUNT` of MockUSDC (default 10,000 mUSDC) + sends
- * 0.05 Sepolia ETH to the requested wallet. Gated by:
+ * 0.05 Base ETH to the requested wallet. Gated by:
  *   - 1 claim per wallet / 24h        (SQLite faucet_claims)
  *   - 1 claim per IP / 24h            (SQLite faucet_claims)
  *   - Daily global cap of 50 claims   (caps relayer drain — ETH only,
@@ -145,7 +145,7 @@ faucetRouter.post("/faucet/claim", publicIpLimiter, async (req, res, next) => {
       // can't buy policies). If mint fails, ETH never goes out and they
       // retry without burning their 24h cooldown. ETH second: confirms the
       // claim — and even if it reverts after the mint succeeded, the user
-      // is not blocked (Sepolia ETH is abundant from public faucets).
+      // is not blocked (Base ETH is abundant from public faucets).
       logger.info({ wallet: walletLower, ip }, "[faucet] dispatching mint + eth");
 
       const mockUsdc = getMockUsdcContract(relayer);

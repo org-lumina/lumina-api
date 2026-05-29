@@ -51,13 +51,13 @@ function liveGet(path: string): Promise<LiveResponse> {
 const maybe = LIVE ? describe : describe.skip;
 
 maybe("live Sepolia: read-only smoke", () => {
-  test("GET /health returns 200 with chainId 84532", async () => {
+  test("GET /health returns 200 with chainId 8453", async () => {
     const res = await liveGet("/health");
     expect(res.status).toBe(200);
     expect(typeof res.body).toBe("object");
     const body = res.body as { status: string; chain: { chainId: number } };
     expect(body.status).toBe("ok");
-    expect(body.chain.chainId).toBe(84532);
+    expect(body.chain.chainId).toBe(8453);
   });
 
   test("GET /products returns the 9 shields registered on the live deploy", async () => {

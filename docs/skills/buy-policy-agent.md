@@ -1,6 +1,6 @@
 # Skill: Buy policy as Agent (via API)
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base mainnet 8453) but verify before use.
 
 > 💵 **Premium is always paid in USDC**, regardless of the `asset` field. The `asset` parameter on `POST /api/v1/policies` is the **covered asset** — what the policy insures against — not the payment token. Discover it via `GET /products` (`coveredAsset` field, added 2026-05-06).
 
@@ -67,7 +67,7 @@ Full reference + failure modes: <https://docs.lumina-org.com/agents/products-and
 
 ```
 You are an AI agent buying parametric insurance on Lumina Protocol
-(Base Sepolia, chainId 84532) via the relayer pattern.
+(Base mainnet, chainId 8453) via the relayer pattern.
 
 YOUR GOAL: Purchase a policy on the agent's behalf.
 

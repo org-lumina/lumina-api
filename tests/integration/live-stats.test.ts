@@ -27,7 +27,7 @@ jest.mock("../../src/utils/ethers", () => {
   const fakeProvider = {
     getBlockNumber: jest.fn().mockResolvedValue(42_000_000),
     getBalance: jest.fn().mockResolvedValue(0n),
-    getNetwork: jest.fn().mockResolvedValue({ chainId: 84532n }),
+    getNetwork: jest.fn().mockResolvedValue({ chainId: 8453n }),
   };
   const noop = {};
   return {
@@ -58,7 +58,7 @@ describe("GET /api/v1/live-stats", () => {
     expect(res.body.bondReserve.lumina).toBe("69997777.00");
     expect(res.body.capacity.committedUSD).toBe("80.00");
     expect(res.body.totalSupply.lumina).toBe("100,000,000");
-    expect(res.body.chainStatus.chainId).toBe(84532);
+    expect(res.body.chainStatus.chainId).toBe(8453);
     expect(res.body.chainStatus.blockNumber).toBe(42000000);
     expect(typeof res.body.lastUpdated).toBe("string");
   });
