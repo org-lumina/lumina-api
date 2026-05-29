@@ -137,7 +137,7 @@ export function createApp(): Application {
   app.use("/sandbox", sandboxRouter);
 
   // [Sprint L] Faucet — public POST /api/v1/faucet/claim sends 100 mock
-  // USDC + 0.05 Sepolia ETH to a wallet, gated by 1/wallet/24h + 1/IP/24h
+  // USDC + 0.05 Base ETH to a wallet, gated by 1/wallet/24h + 1/IP/24h
   // + a daily cap of 50 (caps relayer drain). GET /faucet/status surfaces
   // current balance + remaining slots. Mounted at /api/v1 (no auth, no
   // captcha — testnet only, used by humans and AI agents alike).

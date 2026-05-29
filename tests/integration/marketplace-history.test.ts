@@ -11,7 +11,7 @@ jest.mock("../../src/utils/ethers", () => {
     getBlock: jest.fn(),
     getBlockNumber: jest.fn().mockResolvedValue(1),
     getBalance: jest.fn().mockResolvedValue(0n),
-    getNetwork: jest.fn().mockResolvedValue({ chainId: 84532n }),
+    getNetwork: jest.fn().mockResolvedValue({ chainId: 8453n }),
   };
   return {
     provider: fakeProvider,

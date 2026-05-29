@@ -1,6 +1,6 @@
 # Skill: Redeem matured bond
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 Both audiences. After ~24 months, exchange your matured ClaimBonds for $LUMINA at the current market price.
 
@@ -16,7 +16,7 @@ A ClaimBond has a face value in USD ($N). When it matures, you can redeem it: bu
 
 ### Before you start
 
-- Wallet connected to Base Sepolia
+- Wallet connected to Base mainnet
 - A ClaimBond that's matured (status `MATURED`, not `HOLDING`)
 
 ### Step by step
@@ -57,7 +57,7 @@ Direct on-chain call to `BondVault.redeemBond(epochId, usdAmount)`. The agent's 
 ### Ready-to-use LLM prompt
 
 ```
-You are an AI agent redeeming Lumina bonds (Base Sepolia).
+You are an AI agent redeeming Lumina bonds (Base mainnet).
 
 YOUR GOAL: Burn matured ClaimBonds and receive LUMINA at market price.
 

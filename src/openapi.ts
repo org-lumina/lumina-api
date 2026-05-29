@@ -47,7 +47,7 @@ export const openapiDocument: OpenAPIDocument = {
     title: "Lumina Protocol API",
     version: "0.1.0",
     description:
-      "Programmatic access to Lumina (Base Sepolia 84532). Discover canonical contract addresses via GET /health.\n\n" +
+      "Programmatic access to Lumina (Base mainnet 8453, LIVE since 2026-05-28). Discover canonical contract addresses via GET /health.\n\n" +
       "## Premium vs covered asset\n\n" +
       "Premium is **ALWAYS paid in USDC** across all products. The `asset` field on a product (`coveredAsset`) or on `POST /api/v1/policies` refers to the *covered asset* — what the policy insures against — **not** the payment token. Discover the covered asset via `GET /products` (`coveredAsset` field).\n\n" +
       "## Authentication\n\n" +
@@ -64,7 +64,7 @@ export const openapiDocument: OpenAPIDocument = {
   servers: [
     {
       url: "https://lumina-api-production-ac85.up.railway.app",
-      description: "Production (Base Sepolia testnet)",
+      description: "Production (Base mainnet 8453)",
     },
     {
       url: "http://localhost:8080",
@@ -182,7 +182,7 @@ export const openapiDocument: OpenAPIDocument = {
           chain: {
             type: "object",
             properties: {
-              chainId: { type: "integer", example: 84532 },
+              chainId: { type: "integer", example: 8453 },
               block: { type: "integer", example: 12345678 },
               rpcConnected: { type: "boolean" },
             },

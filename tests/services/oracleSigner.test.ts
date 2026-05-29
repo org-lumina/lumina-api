@@ -7,8 +7,8 @@ const ORACLE_ADDR = "0x0000000000000000000000000000000000000000";
 process.env.PORT = "3000";
 process.env.NODE_ENV = "test";
 process.env.LOG_LEVEL = "error";
-process.env.RPC_URL = "https://base-sepolia-rpc.publicnode.com";
-process.env.CHAIN_ID = "84532";
+process.env.RPC_URL = "https://base-mainnet-rpc.publicnode.com";
+process.env.CHAIN_ID = "8453";
 process.env.RELAYER_PRIVATE_KEY = TEST_PRIVKEY;
 process.env.ADMIN_TOKEN = "x".repeat(64);
 process.env.LUMINA_TOKEN = "0x0000000000000000000000000000000000000001";
@@ -30,11 +30,11 @@ describe("oracleSigner", () => {
     expect(getSignerAddress().toLowerCase()).toBe(TEST_ADDR.toLowerCase());
   });
 
-  it("domain is pinned to LuminaOracle/2/84532/<oracle addr>", () => {
+  it("domain is pinned to LuminaOracle/2/8453/<oracle addr>", () => {
     const d = getDomain();
     expect(d.name).toBe("LuminaOracle");
     expect(d.version).toBe("2");
-    expect(d.chainId).toBe(84532);
+    expect(d.chainId).toBe(8453);
     expect(d.verifyingContract).toBe(ORACLE_ADDR);
   });
 

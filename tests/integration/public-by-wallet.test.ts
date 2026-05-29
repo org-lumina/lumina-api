@@ -7,7 +7,7 @@ jest.mock("../../src/utils/ethers", () => {
     getBlockNumber: jest.fn().mockResolvedValue(42_000_000),
     getBlock: jest.fn().mockResolvedValue({ timestamp: 1_700_000_000 }),
     getBalance: jest.fn().mockResolvedValue(0n),
-    getNetwork: jest.fn().mockResolvedValue({ chainId: 84532n }),
+    getNetwork: jest.fn().mockResolvedValue({ chainId: 8453n }),
   };
   const claimBond = {
     filters: { EpochCreated: jest.fn(() => ({})), TransferSingle: jest.fn(() => ({})) },

@@ -1,6 +1,6 @@
 # Skill: Read shield specs
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base mainnet 8453) but verify before use.
 
 > 💵 **Premium is always paid in USDC**, regardless of the `asset` field. The `asset` parameter on `POST /api/v1/policies` is the **covered asset** — what the policy insures against — not the payment token. Discover it via `GET /products` (`coveredAsset` field, added 2026-05-06).
 
@@ -63,7 +63,7 @@ Read the on-chain `ProductConfig` struct (payoutRatioBps, triggerProbBps, margin
 ### Ready-to-use LLM prompt
 
 ```
-You are an AI agent operating on Lumina Protocol (Base Sepolia, chainId 84532).
+You are an AI agent operating on Lumina Protocol (Base mainnet, chainId 8453).
 
 YOUR GOAL: Fetch the per-product config for one or more shields.
 
@@ -90,11 +90,11 @@ This skill is on-chain only — no REST endpoint. Use a JSON-RPC client.
 
 ```typescript
 import { createPublicClient, http } from 'viem'
-import { baseSepolia } from 'viem/chains'
+import { base } from 'viem/chains'
 
 const client = createPublicClient({
-  chain: baseSepolia,
-  transport: http('https://sepolia.base.org'),
+  chain: base,
+  transport: http('https://mainnet.base.org'),
 })
 
 const config = await client.readContract({

@@ -1,6 +1,6 @@
 # Skill: Receive ClaimBond on trigger
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 Both audiences. Information about what happens automatically when a policy you bought triggers.
 
@@ -52,7 +52,7 @@ This is a passive flow — your only "action" is detecting that the bond was min
 ### Ready-to-use LLM prompt
 
 ```
-You are an AI agent watching for incoming ClaimBonds on Lumina (Base Sepolia).
+You are an AI agent watching for incoming ClaimBonds on Lumina (Base mainnet).
 
 YOUR GOAL: Detect when a triggered policy results in a bond mint to your wallet.
 

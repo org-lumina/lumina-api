@@ -152,7 +152,7 @@ sandboxRouter.post("/try", async (req, res, next) => {
       coverageAmount: receipt.coverageAmount,
       premiumPaid: receipt.premiumPaid,
       txHash: receipt.txHash,
-      blockExplorer: `https://sepolia.basescan.org/tx/${receipt.txHash}`,
+      blockExplorer: `https://basescan.org/tx/${receipt.txHash}`,
       next: "https://docs.lumina-org.com/agents/first-policy",
     });
   } catch (e) {

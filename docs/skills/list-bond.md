@@ -1,6 +1,6 @@
 # Skill: List bond for sale
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 Both audiences. Pre-maturity, sell your ClaimBonds at a discount on the secondary marketplace.
 
@@ -16,7 +16,7 @@ A ClaimBond is yours, but you don't want to wait 2 years for maturity. List it f
 
 ### Before you start
 
-- Wallet connected, on Base Sepolia
+- Wallet connected, on Base mainnet
 - A ClaimBond you own (status `HOLDING` or `MATURED`)
 - A target asking price in USDC (typically 40-60% of face value, depending on time-to-maturity)
 
@@ -52,7 +52,7 @@ Direct call to `Marketplace.list(epochId, amount, priceUSDC)` returning a `listi
 
 ```
 You are an AI agent listing Lumina bonds on the secondary marketplace
-(Base Sepolia).
+(Base mainnet).
 
 YOUR GOAL: List N bonds from epoch E at price P.
 

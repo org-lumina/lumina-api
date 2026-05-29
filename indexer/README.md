@@ -1,6 +1,6 @@
 # Lumina Indexer (Ponder)
 
-Sprint J — skeleton scope. Sub-package inside `lumina-api/` that runs Ponder against the Lumina protocol contracts on Base Sepolia. Ships **alongside** the API on the same Railway service. See [`tracking/architectural-decisions.md` ADR-008](https://github.com/org-lumina/lumina-testnet-tracker/blob/main/tracking/architectural-decisions.md) for the "same repo" decision and the migration plan to a separate `lumina-indexer` service when traffic justifies it.
+Sprint J — skeleton scope. Sub-package inside `lumina-api/` that runs Ponder against the Lumina protocol contracts on Base mainnet. Ships **alongside** the API on the same Railway service. See [`tracking/architectural-decisions.md` ADR-008](https://github.com/org-lumina/lumina-testnet-tracker/blob/main/tracking/architectural-decisions.md) for the "same repo" decision and the migration plan to a separate `lumina-indexer` service when traffic justifies it.
 
 ## Status
 
@@ -53,6 +53,6 @@ Tracked as items in `checklists/01-infraestructura.md` of the tracker repo:
 
 ## Why same repo (Sprint J)
 
-- < 50 active agents on Sepolia today → operational simplicity > scaling headroom.
+- < 50 active agents on Base mainnet today → operational simplicity > scaling headroom.
 - Single Railway service / single deploy / single env-vars surface.
 - Migration to a dedicated `lumina-indexer` repo is a one-day task (see ADR-008 plan) once traffic justifies the split.

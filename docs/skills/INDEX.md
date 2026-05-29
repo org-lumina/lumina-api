@@ -7,7 +7,7 @@
 ## Auth & setup
 - [generate-api-key.md](generate-api-key.md) — request / rotate API keys
 - [configure-api-client.md](configure-api-client.md) — TS / Python / curl boilerplate
-- [connect-wallet.md](connect-wallet.md) — wallet → Base Sepolia
+- [connect-wallet.md](connect-wallet.md) — wallet → Base mainnet
 - [approve-usdc.md](approve-usdc.md) — ERC-20 approval for the relayer
 
 ## Read (no on-chain writes)

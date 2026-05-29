@@ -79,7 +79,7 @@ const fakeProvider = {
   // covers every fixture in a single window.
   getBlockNumber: jest.fn().mockResolvedValue(300_000),
   getBalance: jest.fn().mockResolvedValue(0n),
-  getNetwork: jest.fn().mockResolvedValue({ chainId: 84532n }),
+  getNetwork: jest.fn().mockResolvedValue({ chainId: 8453n }),
 };
 
 jest.mock("../../src/utils/ethers", () => ({

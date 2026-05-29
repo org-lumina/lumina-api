@@ -178,7 +178,7 @@ jest.mock("../../src/utils/ethers", () => ({
     provider: {
         getBlockNumber: jest.fn().mockResolvedValue(40_792_000),
         getBalance: jest.fn().mockResolvedValue(2n * 10n ** 16n),
-        getNetwork: jest.fn().mockResolvedValue({ chainId: 84532n }),
+        getNetwork: jest.fn().mockResolvedValue({ chainId: 8453n }),
     },
     relayer: { address: "0x168dC7105e907294f9d066cee24f30caa5A17E4a" },
     coverRouter: {

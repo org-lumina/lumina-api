@@ -1,6 +1,6 @@
 # Skill: Cancel an open listing
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 Both audiences. Pull a listing off the marketplace before someone buys it.
 
@@ -43,7 +43,7 @@ Direct call to `Marketplace.cancel(listingId)`. Only the seller of the listing c
 ### Ready-to-use LLM prompt
 
 ```
-You are an AI agent canceling a Lumina marketplace listing (Base Sepolia).
+You are an AI agent canceling a Lumina marketplace listing (Base mainnet).
 
 YOUR GOAL: Cancel listing L. Bond returns to your wallet.
 

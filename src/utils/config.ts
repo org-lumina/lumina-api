@@ -9,11 +9,13 @@ const ConfigSchema = z.object({
   RPC_URL: z.string().url(),
   // [Sprint F] Optional fallback RPCs. When set, ethers wraps the primary +
   // these into a FallbackProvider so a single provider outage doesn't take
-  // the API down. Public Base Sepolia (https://sepolia.base.org) is added
+  // the API down. Public Base mainnet (https://mainnet.base.org) is added
   // automatically as last-resort if RPC_URL_PUBLIC is unset.
   RPC_URL_QUICKNODE: z.string().url().optional(),
   RPC_URL_PUBLIC: z.string().url().optional(),
-  CHAIN_ID: z.coerce.number().int().positive().default(84532),
+  // [Mainnet 2026-05-28] Default flipped from Base Sepolia (84532) to Base
+  // mainnet (8453). Override only for the testnet sandbox stack.
+  CHAIN_ID: z.coerce.number().int().positive().default(8453),
 
   RELAYER_PRIVATE_KEY: z
     .string()
@@ -29,16 +31,18 @@ const ConfigSchema = z.object({
   MARKETPLACE: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
   USDC: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
   // [Sprint USDC Mock — Phase 5] Free-mintable mock USDC used by the faucet.
-  // The protocol's canonical premium token (`USDC`) is the on-chain Circle
-  // address (non-mintable), so the faucet uses a separate permissionless
-  // MockUSDC to fund agents + founder for testnet usage. Defaults to the
-  // deployed mock on Base Sepolia; override via env when redeployed.
+  // The protocol's canonical premium token (`USDC`) on mainnet is Circle's
+  // non-mintable `0x833589f…`. The faucet uses a separate permissionless
+  // USDC on the Base mainnet sandbox to fund agents + founder for
+  // testnet exploration. The default below is the Sepolia USDC — set to a
+  // zero address on mainnet builds where the faucet is disabled, or override
+  // for an alternate sandbox.
   MOCK_USDC_ADDRESS: z
     .string()
     .regex(/^0x[0-9a-fA-F]{40}$/)
-    .default("0xD944d8e5D8329994D83950872Ec210891d3Ab6AE"),
+    .default("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
   // Amount minted per faucet claim, in 6-dec USDC base units.
-  // Default: 10,000 mUSDC (`10_000 * 1e6`).
+  // Default: 10,000 USDC (`10_000 * 1e6`).
   FAUCET_USDC_AMOUNT: z
     .string()
     .regex(/^\d+$/)
@@ -63,7 +67,7 @@ const ConfigSchema = z.object({
 
   // Sandbox / "Try It" widget. Optional — when SANDBOX_WALLET is unset
   // the sandbox endpoints respond 503 sandbox_disabled. Funded externally
-  // (cron tops it up with mUSDC); the API merely consumes from it. The
+  // (cron tops it up with USDC); the API merely consumes from it. The
   // wallet address is the buyer-of-record on every sandbox purchase.
   SANDBOX_WALLET: z
     .string()

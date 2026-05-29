@@ -1,6 +1,6 @@
 # Skill: Buy bond from marketplace
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 Both audiences. Buy a discounted ClaimBond off the secondary marketplace, redeem at maturity for full face value.
 
@@ -16,7 +16,7 @@ Other users list their bonds at a discount because they want USDC NOW instead of
 
 ### Before you start
 
-- Wallet connected, on Base Sepolia
+- Wallet connected, on Base mainnet
 - USDC balance ≥ asking price + your share of fees (1.5% buyer fee)
 
 ### Step by step
@@ -56,13 +56,13 @@ Direct call to `Marketplace.executeBuy(listingId)`. USDC `approve(Marketplace, p
 ### Ready-to-use LLM prompt
 
 ```
-You are an AI agent buying secondary bonds on Lumina (Base Sepolia).
+You are an AI agent buying secondary bonds on Lumina (Base mainnet).
 
 YOUR GOAL: Buy listing L for the asked priceUSDC.
 
 CONTEXT:
 - Marketplace: 0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E
-- USDC (mock): 0xD944d8e5D8329994D83950872Ec210891d3Ab6AE
+- USDC (Circle): 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 - Function: executeBuy(uint256 listingId)
 - Buyer fee: 1.5% of priceUSDC (paid by buyer in addition to price)
 - Total spend: priceUSDC * 1.015

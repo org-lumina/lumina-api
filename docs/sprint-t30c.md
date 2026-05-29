@@ -1,6 +1,6 @@
 # Sprint T-30c — Flash Shield V5.3 Deployment
 
-**Network:** Base Sepolia (chainId 84532)
+**Network:** Base mainnet (chainId 8453)
 **Deployer:** `0xe585e76A0b8CbbC2d10b1110a9ac3F4c11dBfDa8`
 **Deployed:** 2026-05-21
 **Sprint scope:** 6 new Flash shields + 6 UUPS `FlashShieldAdapter` proxies, all

@@ -92,7 +92,7 @@ describe("GET /sandbox/info", () => {
 describe("POST /sandbox/try", () => {
   beforeEach(() => purchaseSpy.mockReset());
 
-  // Live keccak hashes from /products on Base Sepolia; matches src/utils/productNames.ts.
+  // Live keccak hashes from /products on Base mainnet; matches src/utils/productNames.ts.
   const FLASHBTC1H_ID =
     "0xe87625ef7415a58c92f2639b16d176521429aac002386dddf1e47e419dfeaddd";
   const FLASHETH1H_ID =

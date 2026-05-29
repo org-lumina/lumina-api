@@ -1,6 +1,6 @@
 # Skill: Get bonds owned (by holder)
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 Both audiences. List the ClaimBond holdings of any wallet.
 
@@ -48,7 +48,7 @@ Two paths: (1) on-chain via `BondsMinted` events (`to` IS indexed → efficient 
 ### Ready-to-use LLM prompt
 
 ```
-You are an AI agent enumerating Lumina ClaimBond holdings (Base Sepolia).
+You are an AI agent enumerating Lumina ClaimBond holdings (Base mainnet).
 
 YOUR GOAL: For a given wallet, return the (epochId, balance, matured) for
 every bond it holds.

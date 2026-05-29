@@ -2,7 +2,7 @@
 
 **Test persona**: brand-new external AI agent with zero prior knowledge, integrating only via public surfaces.
 **Test date**: 2026-05-05
-**Live deployment under test**: `https://lumina-api-production-ac85.up.railway.app` (V5.1, Base Sepolia)
+**Live deployment under test**: `https://lumina-api-production-ac85.up.railway.app` (V5.1, Base mainnet)
 **Bot deployed at**: `https://lumina-agent-bot-production.up.railway.app` (still running at hand-off)
 
 ---
@@ -118,7 +118,7 @@ While provisioning Railway env vars via `railway add --service ... --variables "
 The architecture *is* agent-ready. Three operational fixes (authorise relayer, single-source addresses, fix `buy-policy-agent.md` schema) plus one feature (`GET /marketplace/listings` or a status of the lacking) would push the score to 8 / 10 in a single sprint.
 
 **Recommendation for next sprint**:
-1. (Day 1) Authorise the relayer on Base Sepolia.
+1. (Day 1) Authorise the relayer on Base mainnet.
 2. (Day 1-2) Rewrite `approve-usdc.md`, `buy-policy-agent.md`, `list-bond.md` with addresses pulled from `/health`.
 3. (Day 2-3) Ship `GET /openapi.json` from the existing Express routes (no behavioural change).
 4. (Day 3-5) Implement `GET /api/v1/marketplace/listings`.

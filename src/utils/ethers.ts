@@ -19,10 +19,10 @@ const cfg = loadConfig();
 
 // [Sprint F] Multi-RPC FallbackProvider.
 // Primary: RPC_URL (Alchemy, weight 2). Fallbacks: RPC_URL_QUICKNODE (when set,
-// weight 1) and RPC_URL_PUBLIC (defaults to https://sepolia.base.org, weight 1).
+// weight 1) and RPC_URL_PUBLIC (defaults to https://mainnet.base.org, weight 1).
 // `quorum: 1` means the first provider to respond wins — no consensus needed.
 // `stallTimeout: 2000` ms before ethers tries the next provider.
-const PUBLIC_FALLBACK = "https://sepolia.base.org";
+const PUBLIC_FALLBACK = "https://mainnet.base.org";
 const network = Network.from(cfg.CHAIN_ID);
 
 function jsonRpc(url: string): JsonRpcProvider {

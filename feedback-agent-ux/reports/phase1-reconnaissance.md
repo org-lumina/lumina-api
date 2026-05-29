@@ -8,7 +8,7 @@
 
 ## What I learned about Lumina
 
-Lumina is a parametric risk protocol on Base L2 (currently Base Sepolia testnet, `chainId=84532`, called "V5.1 ClaimBond Model"). Users buy short-duration policies covering price-shock conditions; if the trigger fires (Chainlink oracle), the protocol mints a 24-month ClaimBond (USD-denominated) to the policy holder. The ClaimBond can be held to maturity and redeemed in LUMINA, or sold on a secondary marketplace. Premiums fund a sealed BondVault reserve; losing premiums burn LUMINA via on-chain market purchases.
+Lumina is a parametric risk protocol on Base L2 (currently Base mainnet, `chainId=8453`, called "V5.1 ClaimBond Model"). Users buy short-duration policies covering price-shock conditions; if the trigger fires (Chainlink oracle), the protocol mints a 24-month ClaimBond (USD-denominated) to the policy holder. The ClaimBond can be held to maturity and redeemed in LUMINA, or sold on a secondary marketplace. Premiums fund a sealed BondVault reserve; losing premiums burn LUMINA via on-chain market purchases.
 
 The protocol exposes two interfaces:
 - A web app at `/app` for humans
@@ -51,7 +51,7 @@ The `count: 9` in `/products` matches the "9 shields" the founder mentions inter
 
 ---
 
-## Live `/health` reveals canonical addresses (Base Sepolia)
+## Live `/health` reveals canonical addresses (Base mainnet)
 
 ```
 relayer       0x168dC7105e907294f9d066cee24f30caa5A17E4a  (balance ≈ 0.02 ETH)

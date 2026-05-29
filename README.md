@@ -1,6 +1,6 @@
 # Lumina API
 
-REST API for the Lumina Protocol V5.1 deployment on **Base Sepolia (chainId 84532)**.
+REST API for the Lumina Protocol V5.1 deployment on **Base mainnet (chainId 8453)**.
 Express 4 + TypeScript + ethers v6 + SQLite. Designed for deployment on Railway.
 
 ## Features
@@ -25,7 +25,7 @@ cp .env.example .env
 # 3. Run dev server
 npm run dev
 
-# 4. Smoke test against the live Sepolia deploy (read-only)
+# 4. Smoke test against the live Base mainnet deploy (read-only)
 npm run smoke
 
 # 5. Run unit + integration tests
@@ -38,11 +38,11 @@ npm test
 2. In Railway: **New Project → Deploy from GitHub repo → org-lumina/lumina-api**.
 3. Set the env vars from `.env.example` in the Railway dashboard. **`RELAYER_PRIVATE_KEY`** and **`ADMIN_TOKEN`** are secrets.
 4. Health check is configured via `railway.toml` to hit `/health`.
-5. Fund the relayer wallet with Base Sepolia ETH so it can submit txs.
+5. Fund the relayer wallet with Base mainnet ETH so it can submit txs.
 
 > **Important**: the relayer wallet must be authorized in `CoverRouter`. From the deployer, call:
 > ```solidity
-> CoverRouterV2(0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316).setRelayer(<RELAYER_ADDRESS>, true);
+> CoverRouterV2(0x7A49B31DC3540E037cdCEb95765eD46f6a515aa2).setRelayer(<RELAYER_ADDRESS>, true);
 > ```
 > The API will refuse to submit purchase txs and return `503 relayer_unauthorized` until this is done.
 
@@ -90,12 +90,12 @@ tests/
   unit/              — pure unit tests
   integration/       — supertest-driven app tests with ethers mocked
 scripts/
-  smoke.ts           — read-only smoke test against the live Sepolia deploy
+  smoke.ts           — read-only smoke test against the live Base mainnet deploy
 Dockerfile           — multi-stage production build
 railway.toml         — Railway deploy config
 ```
 
-## Smart contracts (Base Sepolia)
+## Smart contracts (Base mainnet)
 
 > ⚠️ Addresses below are a snapshot — the canonical source is `GET /health`.
 > Always fetch from `/health` programmatically instead of hardcoding.
@@ -108,7 +108,7 @@ railway.toml         — Railway deploy config
 | PolicyManagerV2 | `0xd9732A8d6Cf5266Dd896B825E78E387B7Dd2c379` |
 | CoverRouterV2 | `0xebC3A783477FbD2720C024e16A8d63B8Db983D84` |
 | Marketplace | `0xfaC56692c626718aC8953A3d5fAE67fac2f1Be6E` |
-| USDC (mock) | `0xD944d8e5D8329994D83950872Ec210891d3Ab6AE` |
+| USDC (Circle) | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 
 ## Payment model — agent pays, relayer signs
 
@@ -125,7 +125,7 @@ Before the first call, every agent **must**:
 
    ```bash
    cast send 0x63D340AE7229BB464bC801f225651341ebcD3693 \
-     "approve(address,uint256)" 0x60447F880Fad94fe1E17DBe9A0Cb39923bC9f316 \
+     "approve(address,uint256)" 0x7A49B31DC3540E037cdCEb95765eD46f6a515aa2 \
      115792089237316195423570985008687907853269984665640564039457584007913129639935 \
      --rpc-url $RPC --private-key $AGENT_PRIVATE_KEY
    ```
@@ -148,7 +148,7 @@ If the agent skips step 1 or 2 the API surfaces the on-chain revert as a structu
 
 The relayer wallet (controlled by the API host) is responsible for:
 
-- Holding **only ETH** for gas — typically a few hundredths of a Sepolia ETH is enough.
+- Holding **only ETH** for gas — typically a few hundredths of a Base ETH is enough.
 - Being authorized once via `CoverRouterV2.setRelayer(<relayer>, true)` from the proxy owner.
 - Signing the `purchasePolicyFor` tx on behalf of the agent.
 

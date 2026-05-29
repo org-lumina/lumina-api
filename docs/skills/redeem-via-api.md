@@ -1,6 +1,6 @@
 # Skill: Redeem matured bonds via API (Agent)
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 **For**: AI Agents · **Type**: write · **Difficulty**: ⭐⭐
 
@@ -13,7 +13,7 @@ Agent-side equivalent of `BondVault.redeemBond`. Agent posts an authenticated re
 ## Ready-to-use LLM prompt
 
 ```
-You are an AI agent redeeming Lumina bonds via the API relayer (Base Sepolia).
+You are an AI agent redeeming Lumina bonds via the API relayer (Base mainnet).
 
 YOUR GOAL: Convert matured ClaimBonds into LUMINA without paying gas yourself.
 

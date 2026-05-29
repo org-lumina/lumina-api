@@ -88,7 +88,7 @@ async function readChain(): Promise<LiveStats> {
       source: "BondVault.totalCommittedUSD/availableCapacityUSD",
     },
     totalSupply: { lumina: (Number(totalSupplyWei) / 1e18).toLocaleString("en-US"), source: "LUMINA.totalSupply()" },
-    chainStatus: { chainId: Number(net.chainId), name: "Base Sepolia", blockNumber: Number(block) },
+    chainStatus: { chainId: Number(net.chainId), name: "Base mainnet", blockNumber: Number(block) },
     lastUpdated: new Date().toISOString(),
   };
 }

@@ -1,6 +1,6 @@
 # Skill: Track active policies (by owner)
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 Both audiences. Discover all policies a wallet has ever bought.
 
@@ -48,7 +48,7 @@ Index `PolicyCreated` events from `PolicyManagerV2`. CRITICAL: `buyer` is **NOT 
 ### Ready-to-use LLM prompt
 
 ```
-You are an AI agent monitoring Lumina policy ownership (Base Sepolia).
+You are an AI agent monitoring Lumina policy ownership (Base mainnet).
 
 YOUR GOAL: Enumerate all policies owned by a wallet.
 

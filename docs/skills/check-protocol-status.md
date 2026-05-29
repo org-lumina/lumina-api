@@ -1,6 +1,6 @@
 # Skill: Check protocol status
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-05 (Base mainnet 8453) but verify before use.
 
 Both audiences. Confirm the protocol is open for new policies and that the bond reserve has capacity.
 
@@ -22,7 +22,7 @@ Two things can stop you from buying a policy: (1) the protocol auto-paused (LUMI
 
 ### What you'll see when it works
 
-Header reads something like `SHIELDS · 9 ACTIVE PRODUCTS · BASE SEPOLIA · CAPACITY $124,500`. All cards "● ACTIVE".
+Header reads something like `SHIELDS · 9 ACTIVE PRODUCTS · Base mainnet · CAPACITY $124,500`. All cards "● ACTIVE".
 
 ### What to do next
 
@@ -42,7 +42,7 @@ Two on-chain reads tell you if it's safe to attempt a purchase: `CoverRouterV2.i
 ### Ready-to-use LLM prompt
 
 ```
-You are an AI agent operating on Lumina Protocol (Base Sepolia, chainId 84532).
+You are an AI agent operating on Lumina Protocol (Base mainnet, chainId 8453).
 
 YOUR GOAL: Verify the protocol can accept new policies before quoting.
 

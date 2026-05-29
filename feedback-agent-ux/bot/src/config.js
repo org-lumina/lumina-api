@@ -10,7 +10,7 @@ export const config = {
   apiBase: process.env.LUMINA_API_BASE || 'https://lumina-api-production-ac85.up.railway.app',
   apiKey: req('LUMINA_API_KEY'),
   privateKey: req('BOT_PRIVATE_KEY'),
-  rpcUrl: process.env.RPC_URL || 'https://sepolia.base.org',
+  rpcUrl: process.env.RPC_URL || 'https://mainnet.base.org',
   tickHedger: Number(process.env.TICK_HEDGER_SEC || 900) * 1000,
   tickYield: Number(process.env.TICK_YIELD_SEC || 1800) * 1000,
   tickTrigger: Number(process.env.TICK_TRIGGER_SEC || 300) * 1000,

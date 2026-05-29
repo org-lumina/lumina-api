@@ -1,6 +1,6 @@
 # Skill: Buy policy as Human (direct contract)
 
-> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base Sepolia 84532) but verify before use.
+> 🔄 **Addresses are dynamic.** Always fetch the latest from `GET /health` (e.g. `https://lumina-api-production-ac85.up.railway.app/health`) instead of trusting hardcoded values below. The on-chain addresses shown here are accurate as of 2026-05-06 (Base mainnet 8453) but verify before use.
 
 > 💵 **Premium is always paid in USDC**, regardless of the `asset` field. The `asset` parameter on `POST /api/v1/policies` is the **covered asset** — what the policy insures against — not the payment token. Discover it via `GET /products` (`coveredAsset` field, added 2026-05-06).
 
@@ -30,9 +30,9 @@ Pay a USDC premium with your own wallet and receive a Lumina policy bound to you
 ## Before you start
 
 - A Web3 wallet (MetaMask, Coinbase Wallet, Rainbow, or WalletConnect)
-- Some test USDC on Base Sepolia (contact `labs@lumina-org.com` for the faucet path)
-- ~$0.01 worth of Sepolia ETH for gas (any Base Sepolia faucet)
-- Wallet connected to **Base Sepolia** (chainId 84532)
+- Some test USDC on Base mainnet (contact `labs@lumina-org.com` for the faucet path)
+- ~$0.01 worth of Base ETH for gas (any Base mainnet faucet)
+- Wallet connected to **Base mainnet** (chainId 8453)
 
 ## Step by step
 
@@ -56,7 +56,7 @@ Pay a USDC premium with your own wallet and receive a Lumina policy bound to you
 - **"Wrong network"** → click the red banner "Switch Network" → wallet prompts to switch
 - **"Transaction rejected by user"** → you clicked Reject; click again
 - **"Reverted: Product not configured"** → shield is paused or not deployed; pick another
-- **Wallet says "Out of gas"** → top up Sepolia ETH
+- **Wallet says "Out of gas"** → top up Base ETH
 
 ## What to do next
 
